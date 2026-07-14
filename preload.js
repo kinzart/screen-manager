@@ -1,0 +1,19 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+contextBridge.exposeInMainWorld('fbs', {
+  chooseFiles: () => ipcRenderer.invoke('files:choose'),
+  validateFiles: paths => ipcRenderer.invoke('files:validate', paths),
+  filePaths: files => Array.from(files || []).map(file => webUtils.getPathForFile(file)).filter(Boolean),
+  openFile: path => ipcRenderer.invoke('files:open', path),
+  showInFolder: path => ipcRenderer.invoke('files:showInFolder', path),
+  loadPlaylist: () => ipcRenderer.invoke('playlist:load'),
+  savePlaylist: data => ipcRenderer.invoke('playlist:save', data),
+  loadSettings: () => ipcRenderer.invoke('settings:load'),
+  saveSettings: data => ipcRenderer.invoke('settings:save', data),
+  listDisplays: () => ipcRenderer.invoke('displays:list'),
+  selectDisplay: id => ipcRenderer.invoke('display:select', id),
+  command: payload => ipcRenderer.send('display:command', payload),
+  status: payload => ipcRenderer.send('control:status', payload),
+  onCommand: fn => ipcRenderer.on('display:command', (_e, value) => fn(value)),
+  onStatus: fn => ipcRenderer.on('control:status', (_e, value) => fn(value)),
+  onDisplays: fn => ipcRenderer.on('displays-changed', (_e, value) => fn(value))
+});

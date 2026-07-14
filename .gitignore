@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+release/
+*.exe
+*.exe.blockmap
+
+# Local runtime data and logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Local AI/agent orchestration state
+.agents/
+.claude/
+.cursor/
+.maestro/
+.memory/
+AGENTS.md
+CLAUDE.md
+
+# Environment files
+.env
+.env.*

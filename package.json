@@ -1,0 +1,40 @@
+{
+  "name": "fbs-screen-manager",
+  "version": "1.0.2",
+  "description": "Gerenciador local de mídia para telão e segundo monitor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/control.test.js",
+    "package": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "jsdom": "^26.1.0"
+  },
+  "build": {
+    "appId": "com.fbs.screenmanager",
+    "productName": "FBS Screen Manager",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

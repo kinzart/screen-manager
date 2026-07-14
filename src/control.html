@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FBS Screen Manager</title><link rel="stylesheet" href="control.css"><link rel="stylesheet" href="schedule.css"></head>
+<style>.row-actions{display:grid;grid-template-columns:1fr 1fr;gap:3px}.row-actions button{padding:3px 6px;min-width:26px}.row-actions .delete{grid-column:1/-1}.item{grid-template-columns:22px 112px minmax(130px,1fr) 80px 118px 90px 64px}</style><body>
+  <header><div class="brand"><span class="mark">FBS</span><div><strong>Screen Manager</strong><small>CONTROLE DE EXIBIÇÃO</small></div></div><div class="header-right"><span id="saveState">Salvo</span><label class="display-select">Saída <select id="displaySelect"></select></label><span class="onair"><i></i> NO AR</span></div></header>
+  <main>
+    <section class="workspace">
+      <div class="section-head"><div><p>PLAYLIST</p><h1>Fila de exibição <span id="count">0 itens</span></h1></div><div class="head-actions"><button id="clearBtn" class="quiet">Limpar</button><button id="addBtn" class="primary">＋ Adicionar mídia</button></div></div>
+      <div id="dropzone" class="dropzone" hidden>Solte imagens e vídeos aqui</div>
+      <div id="empty" class="empty"><div class="empty-icon">＋</div><h2>Sua fila está vazia</h2><p>Adicione imagens e vídeos ou arraste arquivos para esta janela.</p><button id="emptyAdd" class="primary">Adicionar primeira mídia</button></div>
+      <div id="queue" class="queue"></div>
+    </section>
+    <aside>
+      <section class="live-card"><div class="label-row"><span>AGORA NO AR</span><span id="playState" class="state">PARADO</span></div><div id="livePreview" class="preview"><div class="preview-empty">FBS</div></div><h2 id="currentName">Nenhuma mídia</h2><div class="time-row"><span id="elapsed">00:00</span><div class="progress"><i id="progress"></i></div><span id="remaining">00:00</span></div><div class="next"><span>PRÓXIMO</span><strong id="nextName">Fila vazia</strong></div></section>
+      <section class="controls"><div class="transport"><button id="prevBtn" title="Anterior">◀</button><button id="pauseBtn" class="play" title="Iniciar ou pausar">▶</button><button id="nextBtn" title="Próximo">▶</button></div><button id="lockBtn" class="lock wide">◇ Bloquear item no ar</button><button id="loopBtn" class="loop wide">Loop ligado</button><div class="action-grid"><button id="blackoutBtn">■ Blackout</button><button id="logoBtn">FBS Logo</button></div></section>
+      <section class="file-card"><div class="label-row"><span>ARQUIVOS</span><span id="fileCount">0</span></div><div id="filePanel" class="file-panel"></div></section>
+      <details><summary>Regras por horário <span>＋</span></summary><div id="rules"></div><button id="addRule" class="quiet wide">Adicionar regra</button></details>
+    </aside>
+  </main>
+  <div id="toast" role="status"></div>
+  <script src="control.js"></script>
+</body></html>
