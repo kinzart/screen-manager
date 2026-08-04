@@ -1,0 +1,71 @@
+/* Design tokens — tema escuro profissional único nesta etapa. */
+:root {
+  /* Superfícies */
+  --surface-0: #0b0b0d;
+  --surface-1: #16161a;
+  --surface-2: #202024;
+  --surface-overlay: rgba(12, 12, 14, 0.88);
+
+  /* Texto */
+  --text-primary: #f2f2f4;
+  --text-secondary: #b7b7c0;
+  --text-muted: #7d7d87;
+
+  /* Marca */
+  --brand: #4da3ff;
+  --brand-strong: #2f8ce8;
+  --on-brand: #08111a;
+
+  /* Estados */
+  --success: #3ecf7e;
+  --success-bg: #123a1f;
+  --warning: #f5b84f;
+  --warning-bg: #3a2f12;
+  --danger: #ff6b6b;
+  --danger-bg: #3a1212;
+
+  /* Bordas */
+  --border-subtle: #2a2a30;
+  --border-strong: #3c3c44;
+
+  /* Sombras */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  /* Tipografia */
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.85rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.15rem;
+  --font-size-xl: 1.5rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+
+  /* Espaçamento */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  /* Raios */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Controles */
+  --control-height: 44px;
+  --bottom-nav-height: 64px;
+  --header-height: 56px;
+
+  /* Safe areas (reaproveitadas nos componentes) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}

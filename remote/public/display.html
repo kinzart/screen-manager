@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FBS Screen Manager — Exibição</title>
+  <link rel="stylesheet" href="./display.css" />
+</head>
+<body>
+  <div id="pairing" class="pairing">
+    <p class="pairing-label">Código para conectar o celular</p>
+    <h1 id="pairing-code">----</h1>
+    <p class="pairing-hint">Abra o app no celular, vá em Configurações → Controle Remoto e digite este código.</p>
+  </div>
+
+  <div id="stage" class="stage" hidden>
+    <div id="media-slot" class="media-slot"></div>
+    <div id="blackout" class="blackout" hidden></div>
+  </div>
+
+  <div id="disconnected" class="disconnected" hidden>
+    <p>Conexão perdida. Tentando reconectar…</p>
+  </div>
+
+  <script src="./display.js"></script>
+</body>
+</html>

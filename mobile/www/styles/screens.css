@@ -1,0 +1,275 @@
+/* Layout do shell (navegação + telas). */
+
+.app-shell-v2 {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+}
+
+.app-shell-screens {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+/* Visível em qualquer tela (Início/Playlist/Apresentação/Configurações) E
+   durante a apresentação fullscreen — ver AppShell.js, this.globalToast. */
+.global-toast {
+  position: fixed;
+  top: max(var(--space-3), var(--safe-top));
+  left: var(--space-3);
+  right: var(--space-3);
+  z-index: 100;
+  margin: 0 !important;
+  box-shadow: var(--shadow-2);
+}
+
+.global-toast[hidden] {
+  display: none;
+}
+
+.app-screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding-bottom: var(--space-4);
+}
+
+/* --- HomeScreen --- */
+.home-screen-content {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.home-summary-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home-summary-stats {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+}
+
+.home-stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.home-stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.home-current-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-actions button.btn {
+  justify-content: center;
+  height: 52px;
+  font-size: var(--font-size-md);
+}
+
+/* --- PlaylistScreen --- */
+.playlist-screen-content {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* --- PresentationScreen (estado parado) --- */
+.presentation-idle {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.media-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.media-panel-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.media-panel-name {
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.presentation-start-button {
+  height: 56px;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+}
+
+/* --- PresentationScreen (fullscreen) --- */
+.app-screen-presentation-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: #000;
+}
+
+.presentation-controls-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: opacity 0.2s ease;
+}
+
+.presentation-controls-overlay.is-hidden {
+  opacity: 0;
+}
+
+.presentation-controls-overlay > * {
+  pointer-events: auto;
+}
+
+.presentation-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: max(var(--space-3), var(--safe-top)) max(var(--space-3), var(--safe-right)) 0 max(var(--space-3), var(--safe-left));
+}
+
+.presentation-progress-wrap {
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-progress-track {
+  flex: 1 1 auto;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.presentation-progress-fill {
+  height: 100%;
+  background: var(--brand);
+  width: 0%;
+}
+
+.presentation-bottom-bar {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  padding: var(--space-5) max(var(--space-3), var(--safe-right)) max(var(--space-3), var(--safe-bottom)) max(var(--space-3), var(--safe-left));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.presentation-next-hint {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--font-size-xs);
+}
+
+.presentation-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.presentation-transport button {
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.presentation-transport button.presentation-play-pause {
+  width: 56px;
+  height: 56px;
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.presentation-transport svg { width: 22px; height: 22px; }
+
+.presentation-exit-button {
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Media unavailable card --- */
+.media-unavailable {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.media-unavailable button.btn {
+  height: 32px;
+  font-size: var(--font-size-xs);
+}
+
+@media (orientation: landscape) {
+  .home-screen-content,
+  .playlist-screen-content,
+  .presentation-idle {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}

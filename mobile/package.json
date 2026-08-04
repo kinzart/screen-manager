@@ -1,0 +1,37 @@
+{
+  "name": "fbs-screen-manager-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FBS Screen Manager - aplicativo mobile Android (Capacitor)",
+  "scripts": {
+    "test": "node --test tests/core/*.test.js tests/adapters/*.test.js tests/ui/*.test.js tests/AppController.test.js tests/integration/*.test.js tests/build/*.test.js",
+    "test:core": "node --test tests/core/*.test.js",
+    "test:persistence": "node --test tests/adapters/CapacitorStorage.test.js tests/adapters/createCapacitorStorage.test.js",
+    "test:media": "node --test tests/adapters/CapacitorMedia.test.js tests/adapters/createCapacitorMedia.test.js",
+    "test:presentation": "node --test tests/adapters/PresentationPlatform.test.js tests/adapters/LocalPresentationAdapter.test.js tests/ui/PresenterView.test.js",
+    "test:ui": "node --test tests/ui/EditorView.test.js tests/ui/TransportBar.test.js tests/ui/AppShell.test.js tests/AppController.test.js",
+    "test:integration": "node --test tests/integration/*.test.js tests/build/*.test.js",
+    "test:lifecycle": "node --test tests/adapters/LifecycleCoordinator.test.js tests/integration/lifecycle-flow.test.js",
+    "test:e2e": "node --test tests/e2e/*.e2e.test.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync": "cap sync android",
+    "doctor": "cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/filesystem": "8.1.2",
+    "@capacitor/preferences": "8.0.1",
+    "@capawesome/capacitor-file-picker": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/cli": "8.4.2",
+    "jsdom": "29.1.1",
+    "playwright": "^1.61.1",
+    "vite": "8.1.5"
+  }
+}
