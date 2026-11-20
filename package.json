@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/control.test.js tests/output.test.js tests/live-server.test.js",
-    "package": "electron-builder --win nsis"
+    "package": "electron-builder --win nsis",
+    "package:linux": "electron-builder --linux AppImage deb",
+    "package:all": "electron-builder --win nsis --linux AppImage deb"
   },
   "dependencies": {
     "ws": "^8.21.0"
@@ -25,16 +27,27 @@
       "desktop/*.js",
       "src/**/*",
       "assets/**/*",
+      "node_modules/ws/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "desktop/windows",
-        "to": "windows-display"
-      }
-    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "extraResources": [
+        {
+          "from": "desktop/windows",
+          "to": "windows-display"
+        }
+      ]
+    },
+    "linux": {
+      "maintainer": "FBS Screen Manager <kinzart@users.noreply.github.com>",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "artifactName": "fbs-screen-manager-${version}-${arch}.${ext}",
+      "executableName": "fbs-screen-manager"
     },
     "nsis": {
       "oneClick": false,

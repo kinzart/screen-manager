@@ -1,6 +1,6 @@
 # Manual do Usuario - Screen Manager
 
-Este manual explica como instalar, operar e personalizar o Screen Manager.
+Este manual explica como instalar, operar e personalizar o Screen Manager no Windows e no Linux.
 
 ## 1. Para que serve
 
@@ -9,7 +9,7 @@ O Screen Manager controla uma tela de saida, como projetor, TV ou telao, a parti
 ## 2. Preparar o computador
 
 1. Conecte o projetor, TV ou telao ao computador.
-2. No Windows, configure as telas como **Estender estas telas**.
+2. No Windows, configure as telas como **Estender estas telas**. No Linux, escolha o modo de telas estendidas nas configurações de monitores do ambiente gráfico.
 3. Abra o aplicativo.
 4. Se houver uma segunda tela, a saida abre nela em tela cheia.
 5. Se houver apenas uma tela, a saida abre em janela para teste.
@@ -26,7 +26,7 @@ Formatos aceitos:
 - Imagens: PNG, JPG, JPEG, WEBP, GIF.
 - Videos: MP4, WEBM.
 
-Importante: o app referencia o caminho original do arquivo. Depois de adicionar uma midia, nao mova ou renomeie o arquivo no Windows.
+Importante: o app referencia o caminho original do arquivo. Depois de adicionar uma midia, nao mova ou renomeie o arquivo no computador.
 
 ## 4. Organizar a fila
 
@@ -86,10 +86,10 @@ O painel **ARQUIVOS** lista os arquivos que estao na fila.
 
 Use:
 
-- **Abrir** para abrir o arquivo no programa padrao do Windows.
+- **Abrir** para abrir o arquivo no programa padrao do sistema.
 - **Pasta** para abrir a pasta onde o arquivo esta salvo.
 
-Isso ajuda a localizar rapidamente uma midia sem procurar manualmente no Explorer.
+Isso ajuda a localizar rapidamente uma midia sem procurar manualmente no gerenciador de arquivos.
 
 ## 10. Trocar o logo
 
@@ -106,30 +106,87 @@ Para trocar:
 3. Substitua o arquivo existente em `src/logo-bs.png`.
 4. Rode o app com:
 
-```powershell
+```sh
 npm start
 ```
 
 5. Clique em **FBS Logo** e confira na tela de saida.
-6. Para gerar um instalador com o novo logo:
+6. Para gerar um instalador Windows com o novo logo:
 
 ```powershell
 npm run package
 ```
+
+No Linux, use `npm run package:linux` para gerar AppImage e deb com o novo logo.
 
 Recomendacao: use PNG com fundo transparente e boa resolucao, por exemplo 1000 px ou mais de largura.
 
-## 11. Gerar um instalador novo
+## 11. Gerar e instalar uma distribuição
 
-Depois de qualquer mudanca no codigo ou no logo, gere um novo instalador:
+Depois de qualquer mudança no código ou no logo, gere uma nova distribuição. Para compilar a partir do repositório, use Node.js 20 ou superior e npm.
+
+### Windows
+
+Na raiz do repositório, execute:
 
 ```powershell
+npm ci
 npm run package
 ```
 
-Os arquivos ficam em `dist/`.
+O comando `npm run package` continua gerando o instalador Windows NSIS. Os arquivos ficam em `dist/`.
 
 Se voce testar um `.exe` antigo, as mudancas recentes nao vao aparecer. Sempre confira a data do arquivo em `dist/`.
+
+### Linux: gerar AppImage e deb
+
+Em um ambiente Linux com interface gráfica compatível com Electron, execute na raiz do repositório:
+
+```sh
+npm ci
+npm run package:linux
+```
+
+Os arquivos ficam em `dist/`, com nomes no padrão `fbs-screen-manager-${version}-${arch}.${ext}`. O pacote inclui `main.js`, `preload.js`, os módulos JavaScript de `desktop/`, `src/`, os assets e a dependência `ws`. O helper PowerShell Miracast é incluído somente no pacote Windows.
+
+O **AppImage é o formato portátil recomendado**: você baixa o arquivo, concede permissão de execução e abre o aplicativo, sem instalar um pacote no sistema. O **deb é destinado a Debian/Ubuntu** e instala o aplicativo no sistema. Escolha o arquivo correspondente à arquitetura do computador.
+
+Para solicitar Windows e Linux juntos, em um ambiente preparado para compilar ambos, use:
+
+```sh
+npm run package:all
+```
+
+### Linux: executar o AppImage
+
+Abra o terminal na pasta onde está o AppImage. Os exemplos abaixo usam a versão 1.1.0 para x64; substitua o nome conforme a versão e arquitetura do arquivo recebido:
+
+```sh
+chmod +x ./fbs-screen-manager-1.1.0-x64.AppImage
+./fbs-screen-manager-1.1.0-x64.AppImage
+```
+
+Guarde o AppImage em uma pasta fixa para abri-lo novamente. Para remover essa distribuição portátil, feche o aplicativo e exclua o arquivo AppImage.
+
+### Debian/Ubuntu: instalar e remover o deb
+
+Na pasta onde está o pacote deb, execute, ajustando o nome ao arquivo recebido:
+
+```sh
+sudo apt install ./fbs-screen-manager-1.1.0-x64.deb
+```
+
+Abra **FBS Screen Manager** no menu de aplicativos ou execute:
+
+```sh
+fbs-screen-manager
+```
+
+Para remover o pacote instalado:
+
+```sh
+sudo apt remove fbs-screen-manager
+```
 
 ## 12. Solucao de problemas
 
@@ -139,15 +196,15 @@ Verifique se o formato e suportado: PNG, JPG, JPEG, WEBP, GIF, MP4 ou WEBM.
 
 ### Um item sumiu ou nao abre
 
-O arquivo pode ter sido movido ou renomeado no Windows. Remova o item da fila e adicione novamente.
+O arquivo pode ter sido movido ou renomeado no computador. Remova o item da fila e adicione novamente.
 
 ### A tela nao abriu no projetor
 
-Confira se o Windows está em **Estender estas telas**. No painel, abra **Conexões** para ver a última saída e o andamento das tentativas. Use o seletor **Saída** para mudar o destino durante o evento.
+Confira se o Windows está em **Estender estas telas** ou se o Linux está configurado para telas estendidas. Verifique se o sistema operacional reconhece o projetor. No painel, abra **Conexões** para ver a última saída e o andamento das tentativas. Use o seletor **Saída** para mudar o destino durante o evento.
 
 ### O logo nao mudou
 
-Confirme se o arquivo novo foi salvo exatamente como `src/logo-bs.png`. Se estiver usando o instalador, gere um novo com `npm run package`.
+Confirme se o arquivo novo foi salvo exatamente como `src/logo-bs.png`. Se estiver usando uma versão empacotada, gere uma nova com `npm run package` no Windows ou `npm run package:linux` no Linux.
 
 ### Testei o exe e nada mudou
 
@@ -155,7 +212,7 @@ O exe provavelmente e antigo. Rode `npm start` para testar o codigo fonte atual 
 
 ## 13. Dicas para evento
 
-- Desative suspensao de energia do Windows.
+- Desative suspensao de energia do computador.
 - Desative notificacoes.
 - Teste todos os videos antes do evento.
 - Prefira MP4 H.264 para maior compatibilidade.
@@ -165,11 +222,17 @@ O exe provavelmente e antigo. Rode `npm start` para testar o codigo fonte atual 
 
 ## 14. Reconectar a TV
 
-Conecte a TV uma vez pelo cabo ou por **Windows + K**. Selecione **Estender** em **Windows + P** e escolha a TV no campo **Saída**. O aplicativo memoriza a tela usada, inclusive entre aberturas.
+Conecte a TV por HDMI ou DisplayPort e configure as telas no modo estendido. No Windows, também é possível conectar uma TV sem fio por **Windows + K** e selecionar **Estender** em **Windows + P**. No Linux, configure os monitores nas opções de tela do ambiente gráfico. Escolha a TV no campo **Saída**. O aplicativo memoriza a tela usada, inclusive entre aberturas.
 
-Se a tela cair, o painel conserva o item, o tempo e o bloqueio. A fila e os horários aguardam a recuperação. Quando o Windows reconhece a mesma tela, o aplicativo volta a colocá-la no ar e retoma a reprodução a partir do ponto da queda. Um vídeo que já estava pausado continua pausado. Blackout e logo também são preservados. Você pode mudar a fila e escolher outra saída enquanto aguarda.
+Para HDMI/DisplayPort no Windows e no Linux, o aplicativo usa a API `screen` do Electron para identificar monitores e acompanhar desconexão e reconexão. Se a tela cair, o painel conserva o item, o tempo e o bloqueio. A fila e os horários aguardam a recuperação. Quando o sistema operacional reconhece a mesma tela, o aplicativo volta a colocá-la no ar e retoma a reprodução a partir do ponto da queda. Um vídeo que já estava pausado continua pausado. Blackout e logo também são preservados. Você pode mudar a fila e escolher outra saída enquanto aguarda. O sinal depende de o cabo, a entrada e a TV estarem disponíveis e de o sistema reconhecer o monitor.
 
-Com HDMI ou DisplayPort, o sinal volta depois que o cabo, a entrada e a TV estiverem disponíveis. Com uma TV identificada como Miracast, o aplicativo verifica o rádio Wi-Fi e procura o nome da última TV no painel **Transmitir** do Windows. As tentativas continuam, com intervalos progressivos, enquanto o aplicativo estiver aberto. Se o nome anunciado for diferente do nome do monitor, informe-o em **Conexões → Nome da TV no painel Transmitir do Windows**. Dê nomes distintos às TVs do evento. Alguns receptores pedem confirmação na própria TV. O painel automático reconhece os nomes do Windows em português e inglês. [Projeção sem fio no Windows](https://support.microsoft.com/en-gb/windows/hardware/display-graphics/screen-mirroring-and-projecting-to-your-pc-or-wireless-display?nochrome=true)
+### Miracast no Windows
+
+O helper PowerShell Miracast é exclusivo do Windows e só acompanha a distribuição Windows. Com uma TV identificada como Miracast, o aplicativo verifica o rádio Wi-Fi e procura o nome da última TV no painel **Transmitir** do Windows. As tentativas continuam, com intervalos progressivos, enquanto o aplicativo estiver aberto. Se o nome anunciado for diferente do nome do monitor, informe-o em **Conexões → Nome da TV no painel Transmitir do Windows**. Dê nomes distintos às TVs do evento. Alguns receptores pedem confirmação na própria TV. O painel automático reconhece os nomes do Windows em português e inglês. [Projeção sem fio no Windows](https://support.microsoft.com/en-gb/windows/hardware/display-graphics/screen-mirroring-and-projecting-to-your-pc-or-wireless-display?nochrome=true)
+
+### Saída sem fio no Linux
+
+O pacote Linux não inclui o helper Miracast do Windows. A disponibilidade de uma saída sem fio depende do sistema, dos drivers e das ferramentas utilizadas. Não há garantia de que essa saída tenha o mesmo backend Miracast ou a mesma reconexão automática do Windows. Se o sistema expuser a saída como monitor, sua identificação pelo aplicativo depende da API `screen` do Electron. Para uma TV com navegador, a saída `/tv` descrita na seção 16 usa a rede IP e funciona de forma independente do helper Miracast.
 
 ## 15. Operar pelo iPhone
 

@@ -1,6 +1,6 @@
 # Screen Manager
 
-Aplicativo Windows para operar imagens e vídeos em eventos. O computador mantém a fila e os horários. O operador pode usar o painel do PC ou o navegador do iPhone, e a TV pode receber a apresentação por cabo, Miracast ou pelo próprio navegador. A operação na rede do evento funciona sem internet.
+Aplicativo para Windows e Linux para operar imagens e vídeos em eventos. O computador mantém a fila e os horários. O operador pode usar o painel do PC ou o navegador do iPhone, e a TV pode receber a apresentação por HDMI/DisplayPort ou pelo próprio navegador. No Windows, também há reconexão por helper Miracast. A operação na rede do evento funciona sem internet.
 
 ## Recursos principais
 
@@ -21,26 +21,81 @@ Aplicativo Windows para operar imagens e vídeos em eventos. O computador manté
 
 No painel do computador, abra **Conexões → Ativar acesso pelo celular e TV**. No iPhone, abra no Safari um dos endereços exibidos e digite o código de controle. Na Android TV, abra o mesmo endereço com `/tv` no final e use o código de exibição. Os aparelhos podem usar Wi-Fi ou Ethernet na mesma rede. O manual também explica o acesso de outra cidade por uma rede privada. [Manual do usuário](MANUAL_USUARIO.md#14-reconectar-a-tv)
 
+### Monitores e reconexão
+
+Em Windows e Linux, as saídas HDMI/DisplayPort usam a API `screen` do Electron para identificar monitores e acompanhar sua desconexão e reconexão. Configure as telas no modo estendido nas configurações do sistema. A recuperação depende de o sistema operacional reconhecer novamente o monitor.
+
+O helper PowerShell de reconexão Miracast é exclusivo do Windows e só é incluído na distribuição Windows. Uma saída sem fio no Linux depende das ferramentas e do suporte do sistema; ela não tem garantia de usar o mesmo backend Miracast nem a mesma reconexão automática do helper Windows. A saída pelo navegador da TV usa a rede IP e é uma alternativa independente desse helper.
+
 ## Requisitos
 
-- Windows 10 ou 11.
-- Node.js 20 ou superior.
-- npm.
+- Windows 10 ou 11, ou Linux com ambiente gráfico compatível com Electron.
+- No Linux, AppImage é o formato portátil recomendado; o pacote deb é destinado a Debian/Ubuntu.
+- Para desenvolvimento e empacotamento: Node.js 20 ou superior e npm.
 
 ## Instalar e rodar em desenvolvimento
 
-```powershell
-npm install
+Na raiz do repositório:
+
+```sh
+npm ci
 npm start
 ```
 
-## Gerar instalador
+## Gerar distribuições
+
+### Windows
+
+O comando existente continua gerando o instalador Windows NSIS:
 
 ```powershell
+npm ci
 npm run package
 ```
 
-O instalador e a versao empacotada serao criados em `dist/`.
+### Linux
+
+Em um ambiente Linux com Node.js e npm, execute na raiz do repositório:
+
+```sh
+npm ci
+npm run package:linux
+```
+
+Os arquivos são criados em `dist/`, com o padrão `fbs-screen-manager-${version}-${arch}.${ext}`. O empacotamento inclui `main.js`, `preload.js`, os módulos JavaScript de `desktop/`, `src/`, os assets e a dependência de produção `ws`.
+
+**AppImage** é o formato portátil recomendado: não instala um pacote no sistema. **deb** é o formato de instalação para Debian/Ubuntu. Use o arquivo correspondente à arquitetura do computador.
+
+Para solicitar os alvos Windows e Linux no mesmo comando, em um ambiente preparado para compilar ambos:
+
+```sh
+npm run package:all
+```
+
+### Executar o AppImage
+
+Na pasta onde salvou o AppImage, conceda permissão de execução e abra o arquivo. O exemplo usa a versão 1.1.0 para x64; ajuste o nome conforme o arquivo gerado ou recebido:
+
+```sh
+chmod +x ./fbs-screen-manager-1.1.0-x64.AppImage
+./fbs-screen-manager-1.1.0-x64.AppImage
+```
+
+Para remover a distribuição portátil, feche o aplicativo e exclua o arquivo AppImage.
+
+### Instalar e remover o deb
+
+No Debian/Ubuntu, na pasta do arquivo deb, execute o comando abaixo, ajustando o nome à versão e arquitetura recebidas:
+
+```sh
+sudo apt install ./fbs-screen-manager-1.1.0-x64.deb
+```
+
+Depois, abra **FBS Screen Manager** pelo menu de aplicativos ou execute `fbs-screen-manager`. Para remover o pacote:
+
+```sh
+sudo apt remove fbs-screen-manager
+```
 
 ## Testes
 
@@ -64,7 +119,7 @@ O logo exibido na tela de saida fica em:
 src/logo-bs.png
 ```
 
-Substitua esse arquivo por outro PNG com o mesmo nome. Depois rode `npm start` para testar ou `npm run package` para gerar um novo instalador.
+Substitua esse arquivo por outro PNG com o mesmo nome. Depois rode `npm start` para testar, `npm run package` para gerar o instalador Windows ou `npm run package:linux` para gerar as distribuições Linux.
 
 ## O que nao vai para o GitHub
 
