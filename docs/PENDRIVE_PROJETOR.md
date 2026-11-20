@@ -61,8 +61,9 @@ mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
 O repositório também possui o workflow **Android APK** em GitHub Actions. Em
 **Actions → Android APK → Run workflow**, execute o build no Ubuntu e baixe o
-artefato `fbs-screen-manager-android`. Isso evita instalar JDK e Android SDK no
-notebook de operação.
+artefato `fbs-screen-manager-android`. O workflow cria a plataforma Android em
+um checkout limpo antes do `cap sync`, pois os arquivos nativos gerados não são
+versionados. Isso evita instalar JDK e Android SDK no notebook de operação.
 
 Copie o APK para o pendrive, abra-o no projetor e autorize a instalação de fontes desconhecidas. Para distribuição pública ou instalação por loja, gere um APK/AAB assinado; `assembleDebug` é somente para teste.
 
