@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#13120f">
+  <meta name="color-scheme" content="dark">
+  <title>FBS · Controle de palco</title>
+  <link rel="manifest" href="/control.webmanifest">
+  <link rel="apple-touch-icon" href="/live/icon-192.png">
+  <link rel="stylesheet" href="/live/live.css">
+  <script src="/live/client.js" defer></script>
+  <script src="/live/control.js" defer></script>
+</head>
+<body data-role="control">
+  <div class="app-shell">
+    <header class="brand-bar">
+      <p class="brand">FBS <span>Controle de palco</span></p>
+      <p id="netStatus" class="net-status" role="status" aria-live="polite">Aguardando conexão</p>
+    </header>
+
+    <section id="pairPanel" class="pair-panel" aria-labelledby="pairTitle">
+      <h1 id="pairTitle">Conectar ao computador</h1>
+      <p id="pairHelp" class="muted">Digite os oito dígitos do código gerado no computador.</p>
+      <form id="pairForm" class="pair-form" method="post">
+        <label for="pairCode">Código de pareamento</label>
+        <input id="pairCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" minlength="8" maxlength="8" enterkeyhint="go" autocapitalize="off" spellcheck="false" aria-describedby="pairHelp pairError" required>
+        <button type="submit" class="primary">Conectar</button>
+        <p id="pairError" class="error-text" role="status" aria-live="polite" aria-atomic="true"></p>
+      </form>
+    </section>
+
+    <main id="session" hidden>
+      <header class="session-heading">
+        <div>
+          <h1>Painel do evento</h1>
+          <p id="connectionDetails" class="muted">Aguardando o estado do computador.</p>
+        </div>
+        <p class="session-clock">Tempo <strong id="elapsed">00:00</strong></p>
+      </header>
+
+      <p id="commandStatus" class="command-status" role="status" aria-live="polite" aria-atomic="true"></p>
+
+      <section class="panel transport-panel" aria-labelledby="transportTitle">
+        <div class="section-heading">
+          <h2 id="transportTitle">Comando de palco</h2>
+          <span id="playbackStatus" class="badge">Parado</span>
+        </div>
+        <div class="transport-grid">
+          <button id="previous" type="button" data-network disabled>Anterior</button>
+          <button id="play" type="button" class="primary" data-network disabled>Reproduzir</button>
+          <button id="next" type="button" data-network disabled>Próximo</button>
+        </div>
+        <div class="utility-grid">
+          <button id="showLogo" type="button" data-network disabled>Logo</button>
+          <button id="blackout" type="button" class="blackout-button" data-network disabled>Blackout</button>
+          <button id="loop" type="button" aria-pressed="false" data-network disabled>Repetir: não</button>
+          <button id="lock" type="button" aria-pressed="false" data-network disabled>Bloquear</button>
+        </div>
+        <p id="lockHint" class="muted small" hidden>Item fixado no ar. As trocas automáticas estão suspensas.</p>
+      </section>
+
+      <div class="workspace">
+        <section class="panel monitor-panel" aria-labelledby="monitorTitle">
+          <div class="section-heading">
+            <h2 id="monitorTitle">No ar</h2>
+            <span class="eyebrow">Prévia sem áudio</span>
+          </div>
+          <div id="previewStage" class="preview-stage">
+            <p class="preview-placeholder">Aguardando a saída do palco.</p>
+          </div>
+          <p id="previewInfo" class="preview-info">Nenhuma saída recebida.</p>
+          <p id="previewHint" class="muted small"></p>
+          <button id="previewResume" type="button" hidden>Ativar prévia</button>
+          <label class="field" for="displaySelect">
+            <span>Saída de vídeo</span>
+            <select id="displaySelect" data-network disabled>
+              <option value="" disabled selected>Nenhuma saída disponível</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="panel playlist-panel" aria-labelledby="playlistTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="playlistTitle">Fila de mídia</h2>
+              <p id="playlistCount" class="muted small">0 na fila</p>
+            </div>
+            <button id="clear" type="button" class="danger" data-network data-edit disabled>Limpar fila</button>
+          </div>
+          <p id="playlistEmpty" class="empty-state">Envie arquivos para preparar a programação.</p>
+          <ol id="playlist" class="item-list" aria-label="Ordem de reprodução"></ol>
+        </section>
+
+        <section class="panel upload-panel" aria-labelledby="uploadTitle">
+          <div class="section-heading">
+            <h2 id="uploadTitle">Enviar arquivos</h2>
+          </div>
+          <label class="field" for="files">
+            <span>Imagens e vídeos</span>
+            <input id="files" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm" multiple aria-describedby="uploadHelp" data-network data-edit disabled>
+          </label>
+          <p id="uploadHelp" class="muted small">PNG, JPEG, GIF, WebP, MP4 ou WebM. Os arquivos são enviados em sequência.</p>
+          <ul id="uploads" class="upload-list" aria-label="Arquivos para envio"></ul>
+          <button id="uploadSend" type="button" class="primary" data-network data-edit disabled>Enviar pendentes</button>
+        </section>
+
+        <section class="panel schedule-panel" aria-labelledby="scheduleTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="scheduleTitle">Regras de horário</h2>
+              <p class="muted small">Horários do computador de palco.</p>
+            </div>
+            <button id="addRule" type="button" data-network data-edit disabled>Adicionar regra</button>
+          </div>
+          <p id="rulesEmpty" class="empty-state">Nenhuma regra cadastrada.</p>
+          <ol id="rules" class="item-list" aria-label="Regras de horário"></ol>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+    <h2 id="confirmTitle">Confirmar ação</h2>
+    <p id="confirmMessage"></p>
+    <div class="dialog-actions">
+      <button id="confirmCancel" type="button">Cancelar</button>
+      <button id="confirmYes" type="button" class="danger">Confirmar</button>
+    </div>
+  </dialog>
+</body>
+</html>

@@ -1,24 +1,50 @@
-const stage = document.getElementById('stage');
-const fileUrl = path => {
-  const normalized = String(path || '').replace(/\\/g, '/');
-  const encoded = normalized.split('/').map((part, index) => index === 0 && /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)).join('/');
-  return `file:///${encoded}`.replace('file:////','file:///');
-};
-function clear() { stage.querySelectorAll('.media,.blackout').forEach(x => x.remove()); }
-function logo() { clear(); document.getElementById('logo').hidden = false; }
-function show(item) {
-  clear(); document.getElementById('logo').hidden = true;
-  const el = document.createElement(item.type === 'video' ? 'video' : 'img');
-  el.className = `media ${item.fit || 'contain'} enter-${item.transition || 'fade'}`;
-  el.src = fileUrl(item.path);
-  if (item.type === 'video') { el.autoplay = true; el.muted = true; el.playsInline = true; el.loop = !!item.duration; el.addEventListener('error', () => window.fbs.status({ error: `Não foi possível reproduzir ${item.name}` })); }
-  else el.addEventListener('error', () => window.fbs.status({ error: `Arquivo não encontrado: ${item.name}` }));
-  stage.appendChild(el);
-}
-window.fbs.onCommand(cmd => {
-  if (cmd.action === 'show') show(cmd.item);
-  if (cmd.action === 'blackout') { clear(); document.getElementById('logo').hidden = true; stage.insertAdjacentHTML('beforeend','<div class="blackout"></div>'); }
-  if (cmd.action === 'logo') logo();
-  if (cmd.action === 'pause') stage.querySelector('video')?.pause();
-  if (cmd.action === 'resume') stage.querySelector('video')?.play().catch(()=>{});
-});
+// Both the local window and the paired TV receive a complete output snapshot.
+(() => {
+  const stage = document.getElementById('stage');
+  const logo = document.getElementById('logo');
+  let sequence, current, video, revision = -1, receivedAt;
+
+  function syncVideo() {
+    if (!video || !video.readyState || !Number.isFinite(video.duration) || !video.duration) return;
+    const seconds = current.position + (current.paused ? 0 : (performance.now() - receivedAt) / 1000);
+    const target = video.loop ? seconds % video.duration : Math.min(seconds, video.duration);
+    if (Math.abs(video.currentTime - target) > 0.7) video.currentTime = target;
+    if (current.paused) video.pause();
+    else if (video.paused && (!video.ended || video.loop)) video.play().catch(() => {});
+  }
+
+  function render(snapshot) {
+    if (!snapshot || snapshot.revision < revision) return;
+    revision = snapshot.revision;
+    current = snapshot;
+    receivedAt = performance.now();
+    if (sequence !== snapshot.sequence) {
+      sequence = snapshot.sequence;
+      stage.querySelector('.media')?.remove();
+      video = null;
+      logo.hidden = snapshot.action !== 'logo';
+      if (snapshot.action === 'show' && snapshot.item) {
+        const item = snapshot.item;
+        const media = document.createElement(item.type === 'video' ? 'video' : 'img');
+        media.className = 'media ' + (item.fit || 'contain') + ' enter-' + (item.transition || 'fade');
+        if (item.type === 'video') {
+          video = media;
+          video.muted = true; video.playsInline = true; video.loop = !!item.duration;
+          video.addEventListener('loadedmetadata', syncVideo);
+        }
+        media.addEventListener('error', () => window.fbs?.status?.({ error: 'Não foi possível abrir ' + item.name }));
+        media.src = item.url;
+        stage.appendChild(media);
+      }
+    }
+    syncVideo();
+  }
+  if (window.fbs) {
+    window.fbs.onCommand(render);
+    window.fbs.currentOutput().then(render);
+  } else {
+    window.addEventListener('fbs-state', event => render(event.detail.output));
+    // A relaunched desktop has a new sequence counter, even with the same pairing.
+    window.addEventListener('fbs-connected', () => { sequence = undefined; revision = -1; });
+  }
+})();

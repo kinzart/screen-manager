@@ -1,6 +1,6 @@
 # Screen Manager
 
-Aplicativo desktop local para controlar imagens e videos em um segundo monitor, projetor ou telao. Ele roda em Windows com Electron, nao precisa de internet, login ou servidor, e foi pensado para eventos, cultos, apresentacoes e operacao de midia ao vivo.
+Aplicativo Windows para operar imagens e vídeos em eventos. O computador mantém a fila e os horários. O operador pode usar o painel do PC ou o navegador do iPhone, e a TV pode receber a apresentação por cabo, Miracast ou pelo próprio navegador. A operação na rede do evento funciona sem internet.
 
 ## Recursos principais
 
@@ -14,6 +14,12 @@ Aplicativo desktop local para controlar imagens e videos em um segundo monitor, 
 - Regras por horario com transicoes.
 - Painel de arquivos com atalho para abrir o arquivo ou mostrar na pasta.
 - Saida em tela cheia no segundo monitor quando disponivel.
+- Recuperação da última saída, com preservação do item, posição do vídeo, pausa e bloqueio.
+- Controle do mesmo evento pelo telefone e saída em navegador de TV, com pareamentos separados.
+
+## Conectar o iPhone ou uma TV
+
+No painel do computador, abra **Conexões → Ativar acesso pelo celular e TV**. No iPhone, abra no Safari um dos endereços exibidos e digite o código de controle. Na Android TV, abra o mesmo endereço com `/tv` no final e use o código de exibição. Os aparelhos podem usar Wi-Fi ou Ethernet na mesma rede. O manual também explica o acesso de outra cidade por uma rede privada. [Manual do usuário](MANUAL_USUARIO.md#14-reconectar-a-tv)
 
 ## Requisitos
 
@@ -42,7 +48,9 @@ O instalador e a versao empacotada serao criados em `dist/`.
 npm test
 ```
 
-O teste automatizado cobre os principais fluxos da tela de controle: foco dos campos, arrastar e soltar, loop, bloqueio, painel de arquivos e reordenacao.
+Os testes cobrem a fila e os controles, perda e retorno da saída, cancelamento das tentativas de reconexão, pareamento e permissões, WebSocket e leitura de vídeo por intervalos.
+
+Para testar o fluxo completo no Windows com Edge e as dependências de `mobile/` instaladas, rode `node tests/desktop-live.e2e.cjs`. O teste abre o Electron com perfil temporário, simula duas telas e opera o telefone e a TV por navegadores separados. A variável opcional `FBS_QA_VIDEO` aceita o caminho de um MP4 para verificar a retomada de vídeo.
 
 ## Manual de usuario
 

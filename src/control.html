@@ -11,10 +11,23 @@
     <aside>
       <section class="live-card"><div class="label-row"><span>AGORA NO AR</span><span id="playState" class="state">PARADO</span></div><div id="livePreview" class="preview"><div class="preview-empty">FBS</div></div><h2 id="currentName">Nenhuma mídia</h2><div class="time-row"><span id="elapsed">00:00</span><div class="progress"><i id="progress"></i></div><span id="remaining">00:00</span></div><div class="next"><span>PRÓXIMO</span><strong id="nextName">Fila vazia</strong></div></section>
       <section class="controls"><div class="transport"><button id="prevBtn" title="Anterior">◀</button><button id="pauseBtn" class="play" title="Iniciar ou pausar">▶</button><button id="nextBtn" title="Próximo">▶</button></div><button id="lockBtn" class="lock wide">◇ Bloquear item no ar</button><button id="loopBtn" class="loop wide">Loop ligado</button><div class="action-grid"><button id="blackoutBtn">■ Blackout</button><button id="logoBtn">FBS Logo</button></div></section>
+      <details id="connections"><summary>Conexões <span>＋</span></summary>
+        <p id="outputStatus" role="status">Verificando a saída…</p>
+        <div id="castField" hidden><label for="castName">Nome da TV no painel Transmitir do Windows</label>
+          <input id="castName" maxlength="120" placeholder="Nome anunciado pela TV"><button id="saveCast">Salvar nome</button></div>
+        <button id="shareToggle" class="wide">Ativar acesso pelo celular e TV</button>
+        <div id="shareInfo" hidden>
+          <p>Na mesma rede, abra um endereço no navegador do aparelho.</p>
+          <div id="shareAddresses"></div>
+          <div class="pair-codes"><div>Controle do celular<strong id="phoneCode"></strong></div><div>Exibição na TV<strong id="tvCode"></strong></div></div>
+          <p id="pairExpiry"></p><button id="renewCodes">Gerar novos códigos</button><p id="clientCount"></p>
+        </div><p id="shareError" role="status"></p>
+      </details>
       <section class="file-card"><div class="label-row"><span>ARQUIVOS</span><span id="fileCount">0</span></div><div id="filePanel" class="file-panel"></div></section>
       <details><summary>Regras por horário <span>＋</span></summary><div id="rules"></div><button id="addRule" class="quiet wide">Adicionar regra</button></details>
     </aside>
   </main>
   <div id="toast" role="status"></div>
   <script src="control.js"></script>
+  <script src="connections.js"></script>
 </body></html>

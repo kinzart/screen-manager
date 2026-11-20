@@ -1,12 +1,15 @@
 {
   "name": "fbs-screen-manager",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Gerenciador local de mídia para telão e segundo monitor",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/control.test.js",
+    "test": "node --test tests/control.test.js tests/output.test.js tests/live-server.test.js",
     "package": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -19,14 +22,15 @@
     "files": [
       "main.js",
       "preload.js",
+      "desktop/*.js",
       "src/**/*",
       "assets/**/*",
       "package.json"
     ],
     "extraResources": [
       {
-        "from": "assets",
-        "to": "assets"
+        "from": "desktop/windows",
+        "to": "windows-display"
       }
     ],
     "win": {

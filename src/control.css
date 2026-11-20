@@ -9,3 +9,10 @@
 .file-row small{color:var(--muted);font-size:10px}
 .file-actions{display:flex;gap:5px}
 .file-actions button{padding:6px 8px;font-size:11px}
+[hidden]{display:none!important}
+#connections p{color:var(--muted);margin:12px 0 6px}#connections p:empty{display:none}
+#connections input{display:block;width:100%;margin:6px 0;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:6px}
+#shareAddresses code{display:block;overflow-wrap:anywhere;user-select:all;color:var(--text);margin:5px 0}
+.pair-codes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;color:var(--muted)}
+.pair-codes strong{display:block;font-size:19px;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:1px}
+#shareError:not(:empty){color:#ffaaa1}.preview .brand-logo{width:55%;height:65%}

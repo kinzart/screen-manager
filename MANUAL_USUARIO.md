@@ -143,7 +143,7 @@ O arquivo pode ter sido movido ou renomeado no Windows. Remova o item da fila e 
 
 ### A tela nao abriu no projetor
 
-Confira no Windows se o modo de exibicao esta como **Estender estas telas**. Depois reinicie o app.
+Confira se o Windows está em **Estender estas telas**. No painel, abra **Conexões** para ver a última saída e o andamento das tentativas. Use o seletor **Saída** para mudar o destino durante o evento.
 
 ### O logo nao mudou
 
@@ -162,3 +162,38 @@ O exe provavelmente e antigo. Rode `npm start` para testar o codigo fonte atual 
 - Mantenha as midias em uma pasta fixa.
 - Leve backup da pasta de midias.
 - Teste blackout, logo, loop e bloqueio antes de abrir o evento.
+
+## 14. Reconectar a TV
+
+Conecte a TV uma vez pelo cabo ou por **Windows + K**. Selecione **Estender** em **Windows + P** e escolha a TV no campo **Saída**. O aplicativo memoriza a tela usada, inclusive entre aberturas.
+
+Se a tela cair, o painel conserva o item, o tempo e o bloqueio. A fila e os horários aguardam a recuperação. Quando o Windows reconhece a mesma tela, o aplicativo volta a colocá-la no ar e retoma a reprodução a partir do ponto da queda. Um vídeo que já estava pausado continua pausado. Blackout e logo também são preservados. Você pode mudar a fila e escolher outra saída enquanto aguarda.
+
+Com HDMI ou DisplayPort, o sinal volta depois que o cabo, a entrada e a TV estiverem disponíveis. Com uma TV identificada como Miracast, o aplicativo verifica o rádio Wi-Fi e procura o nome da última TV no painel **Transmitir** do Windows. As tentativas continuam, com intervalos progressivos, enquanto o aplicativo estiver aberto. Se o nome anunciado for diferente do nome do monitor, informe-o em **Conexões → Nome da TV no painel Transmitir do Windows**. Dê nomes distintos às TVs do evento. Alguns receptores pedem confirmação na própria TV. O painel automático reconhece os nomes do Windows em português e inglês. [Projeção sem fio no Windows](https://support.microsoft.com/en-gb/windows/hardware/display-graphics/screen-mirroring-and-projecting-to-your-pc-or-wireless-display?nochrome=true)
+
+## 15. Operar pelo iPhone
+
+1. Ligue o computador e o iPhone à rede do evento. O PC também pode usar cabo de rede. Em **Conexões**, clique em **Ativar acesso pelo celular e TV**.
+2. Abra no Safari o endereço exibido pelo PC, por exemplo `http://192.168.1.20:8790`. Digite os oito dígitos de **Controle do celular**. Cada código vale por dez minutos e pareia um navegador. **Gerar novos códigos** permite adicionar outro aparelho.
+3. Use o painel para enviar mídias, editar a fila e os horários, colocar um item no ar, pausar, bloquear, aplicar blackout ou exibir a logo. As alterações aparecem no computador e nos outros controles. O PC precisa permanecer aberto durante o evento.
+4. Para voltar pelo ícone do iPhone, use **Compartilhar → Adicionar à Tela de Início** no Safari quando disponível. O navegador guarda o pareamento por até 30 dias. **Desativar acesso remoto** no PC encerra as conexões e invalida os pareamentos.
+
+Cada arquivo enviado pode ter até 256 MB. Use PNG, JPEG, GIF, WEBP, MP4 ou WEBM. Para fotos HEIC ou vídeos MOV do iPhone, exporte uma cópia em JPEG ou MP4 compatível com a TV. Se o painel não abrir, confira se os aparelhos estão na mesma rede e se a rede de convidados permite comunicação entre eles. Se o Windows pedir acesso de rede, autorize o aplicativo para a rede privada do evento.
+
+## 16. Exibir diretamente na Android TV
+
+Abra o navegador da TV e digite o endereço do PC com `/tv` no final, por exemplo `http://192.168.1.20:8790/tv`. Digite o código **Exibição na TV** e use **Tela cheia** com o controle remoto. A TV recebe somente a saída da apresentação. Após uma queda de rede, a página tenta se conectar novamente e busca a mídia, o ponto de reprodução e o estado atuais do PC.
+
+Salve o endereço nos favoritos. Em navegadores que oferecem instalação de aplicativos web, abra o endereço por HTTPS e use **Instalar** ou **Adicionar à tela inicial**. A opção depende do navegador da TV. A saída também funciona como página comum em navegadores com WebSocket e suporte aos formatos da apresentação. [Instalação de aplicativos web](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable)
+
+## 17. Controlar o evento de outra cidade
+
+Uma opção é conectar o PC do evento e o iPhone à mesma rede privada Tailscale. Com o acesso remoto habilitado no Screen Manager, execute no PC do evento:
+
+```powershell
+tailscale serve --bg http://127.0.0.1:8790
+```
+
+Abra no telefone a URL HTTPS que o Tailscale mostrar e pareie usando o código de controle do PC. O mesmo endereço com `/tv` atende um receptor da rede privada. Um túnel próprio também pode encaminhar a raiz de um endereço HTTPS para a porta 8790. Ele precisa encaminhar WebSocket, uploads e requisições HTTP de mídia com o cabeçalho `Range`. Preserve o cabeçalho `Host` ou encaminhe `X-Forwarded-Host` por um proxy no próprio computador. [Comando Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve)
+
+O telefone usa a rede IP para controlar a sessão. A projeção Miracast usa Wi-Fi Direct. O estado do Bluetooth é independente desses dois caminhos. [Microsoft sobre o transporte Miracast](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/wireless-displays--miracast-)

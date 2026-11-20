@@ -31,6 +31,22 @@ const url = (p) => {
   return `file:///${encoded}`.replace("file:////", "file:///");
 };
 const uid = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+let initialized = false, publicationPending = false, outputBlocked = false, surface = "logo", previewKey;
+function publish() {
+  if (!initialized || publicationPending || !window.fbs.publishState) return;
+  publicationPending = true;
+  queueMicrotask(() => {
+    publicationPending = false;
+    window.fbs.publishState({ playlist, rules: settings.rules, loop: settings.loopPlaylist,
+      currentId, running, paused, locked, elapsed });
+  });
+}
+function command(action, item) {
+  if (action === "show") previewKey = undefined;
+  if (["show", "blackout", "logo"].includes(action)) surface = action;
+  window.fbs.command(item ? { action, item } : { action });
+  publish();
+}
 const fmt = (n) =>
   `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(Math.max(0, Math.floor(n % 60))).padStart(2, "0")}`;
 function toast(msg) {
@@ -199,12 +215,13 @@ function update(id, key, value) {
   updateStatus();
 }
 async function save() {
+  publish();
   $("#saveState").textContent = "Salvando…";
   await window.fbs.savePlaylist(playlist);
   await window.fbs.saveSettings(settings);
   $("#saveState").textContent = "Salvo";
 }
-async function addFiles(paths) {
+async function addFiles(paths, displayName) {
   const requested = Array.from(paths || []).filter(Boolean);
   if (!requested.length) return;
   const valid = await window.fbs.validateFiles(requested);
@@ -212,7 +229,7 @@ async function addFiles(paths) {
     playlist.push({
       id: uid(),
       path,
-      name: path.split(/[\\/]/).pop(),
+      name: displayName || path.split(/[\\/]/).pop(),
       type: extType(path),
       duration: 10,
       transition: "",
@@ -225,7 +242,7 @@ async function addFiles(paths) {
     toast("Alguns arquivos não são compatíveis");
   if (!valid.length) return;
   render();
-  save();
+  await save();
 }
 async function choose() {
   addFiles(await window.fbs.chooseFiles());
@@ -237,10 +254,7 @@ function take(id) {
   elapsed = 0;
   running = true;
   paused = false;
-  window.fbs.command({
-    action: "show",
-    item: { ...item, transition: transitionFor(item) },
-  });
+  command("show", { ...item, transition: transitionFor(item) });
   startTimer();
   updateStatus();
 }
@@ -253,7 +267,7 @@ function stop() {
   paused = false;
   clearInterval(timer);
   timer = null;
-  window.fbs.command({ action: "logo" });
+  command("logo");
   updateStatus();
 }
 function next(delta = 1) {
@@ -275,13 +289,13 @@ function autoNext() {
 function toggle() {
   if (!running) return start();
   paused = !paused;
-  window.fbs.command({ action: paused ? "pause" : "resume" });
+  command(paused ? "pause" : "resume");
   updateStatus();
 }
 function startTimer() {
   clearInterval(timer);
   timer = setInterval(() => {
-    if (!running || paused) return;
+    if (!running || paused || outputBlocked) return;
     elapsed += 0.25;
     const item = playlist.find((x) => x.id === currentId);
     if (!item) return autoNext();
@@ -314,7 +328,7 @@ function updateStatus() {
         ? "Fim da fila"
         : "Fila vazia";
   $("#elapsed").textContent = fmt(elapsed);
-  $("#remaining").textContent = fmt((item?.duration || 0) - elapsed);
+  $("#remaining").textContent = fmt(Math.max(0, (item?.duration || 0) - elapsed));
   $("#progress").style.width = item?.duration
     ? `${Math.min(100, (elapsed / item.duration) * 100)}%`
     : "0";
@@ -325,11 +339,17 @@ function updateStatus() {
       : "RODANDO";
   $("#pauseBtn").textContent = running && !paused ? "Ⅱ" : "▶";
   const preview = $("#livePreview");
-  preview.innerHTML = item
-    ? item.type === "video"
-      ? `<video muted autoplay loop src="${url(item.path)}"></video>`
-      : `<img src="${url(item.path)}">`
-    : '<div class="preview-empty">FBS</div>';
+  const key = surface === "show" ? item?.id : surface;
+  if (key !== previewKey) {
+    previewKey = key;
+    preview.innerHTML = surface === "show" && item
+      ? item.type === "video" ? `<video muted autoplay loop src="${url(item.path)}"></video>` : `<img src="${url(item.path)}">`
+      : surface === "logo" ? '<img class="brand-logo" src="logo-bs.png" alt="Logo">' : '';
+  }
+  if (surface === "blackout" || (surface === "logo" && running)) $("#currentName").textContent = surface === "blackout" ? "Blackout" : "Logo";
+  const previewVideo = preview.querySelector("video");
+  if (previewVideo && (paused || outputBlocked) && !previewVideo.paused) previewVideo.pause();
+  if (previewVideo && !paused && !outputBlocked && previewVideo.paused && previewVideo.readyState >= 2) previewVideo.play().catch(() => {});
 }
 function renderRules() {
   $("#rules").innerHTML = settings.rules
@@ -360,17 +380,15 @@ function renderRules() {
   });
 }
 async function loadDisplays(list) {
-  const select = $("#displaySelect"),
-    old = select.value;
-  select.innerHTML = list
-    .map((d) => `<option value="${d.id}">${d.label}</option>`)
-    .join("");
-  if (list.some((d) => d.id === old)) select.value = old;
+  const select = $("#displaySelect");
+  select.replaceChildren(...list.map(d => new Option(d.label, d.id, false, !!d.selected)));
+  if (outputBlocked) select.add(new Option("Aguardando a última tela", "", false, true), 0);
 }
 $("#addBtn").onclick = $("#emptyAdd").onclick = choose;
 $("#clearBtn").onclick = () => {
   if (confirm("Remover todos os itens da fila?")) {
     playlist = [];
+    currentId = null;
     stop();
     render();
     save();
@@ -381,6 +399,7 @@ $("#nextBtn").onclick = () => next(1);
 $("#pauseBtn").onclick = toggle;
 $("#lockBtn").onclick = () => {
   locked = !locked;
+  publish();
   $("#lockBtn").classList.toggle("active", locked);
   $("#lockBtn").textContent = locked
     ? "◆ Item no ar bloqueado"
@@ -395,10 +414,10 @@ $("#loopBtn").onclick = () => {
   updateStatus();
   save();
 };
-$("#blackoutBtn").onclick = () => window.fbs.command({ action: "blackout" });
-$("#logoBtn").onclick = () => window.fbs.command({ action: "logo" });
+$("#blackoutBtn").onclick = () => { command("blackout"); updateStatus(); };
+$("#logoBtn").onclick = () => { command("logo"); updateStatus(); };
 $("#addRule").onclick = () => {
-  settings.rules.push({ start: "19:00", end: "20:00", transition: "fade" });
+  settings.rules.push({ id: uid(), start: "19:00", end: "20:00", transition: "fade" });
   renderRules();
   save();
 };
@@ -431,6 +450,7 @@ function secondsUntil(time, now = new Date()) {
   return Math.ceil((target - now) / 1000);
 }
 function checkSchedule() {
+  if (outputBlocked) return;
   const now = new Date(),
     scheduled = playlist
       .map((item, index) => ({
@@ -492,8 +512,11 @@ setInterval(checkSchedule, 1000);
   playlist = await window.fbs.loadPlaylist();
   settings = { rules: [], loopPlaylist: true, ...(await window.fbs.loadSettings()) };
   settings.rules ||= [];
+  settings.rules.forEach(rule => { rule.id ||= uid(); });
   settings.loopPlaylist ??= true;
+  initialized = true;
   render();
   renderRules();
   loadDisplays(await window.fbs.listDisplays());
+  publish();
 })().catch((e) => toast(`Erro ao iniciar: ${e.message}`));
