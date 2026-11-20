@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const { OutputState, DisplayRecovery } = require('./desktop/output');
 const { identifyDisplay, reconnectDisplay } = require('./desktop/windows-display');
 const { createLiveServer, mediaTypes } = require('./desktop/live-server');
+const { createRemoteRelay } = require('./desktop/remote-relay');
 
 const DATA_DIR = path.join(app.getPath('userData'), 'data');
 const PLAYLIST_FILE = path.join(DATA_DIR, 'playlist.json');
@@ -17,7 +18,7 @@ const PORT = 8790;
 const output = new OutputState();
 let controlWindow;
 let displayWindow;
-let recovery, connections, live, placement, readyWindow;
+let recovery, connections, live, cloudRelay, placement, readyWindow;
 let operatorState = null, stateAt = 0, remoteError = '', transition = Promise.resolve(), quitting = false;
 const pendingActions = new Map();
 
@@ -71,6 +72,7 @@ function attachOutput(target) {
 function publishOutput() {
   send(displayWindow, 'display:command', localOutput());
   live?.update();
+  cloudRelay?.publish(publicState('control'));
 }
 function localOutput() {
   const state = output.snapshot();
@@ -81,11 +83,14 @@ function localOutput() {
 function remoteInfo() {
   const urls = Object.values(os.networkInterfaces()).flat().filter(n => n && n.family === 'IPv4' && !n.internal)
     .map(n => `http://${n.address}:${PORT}`);
-  return { enabled: !!live, urls: [...new Set(urls)], port: PORT, error: remoteError, ...live?.info() };
+  const cloudInfo = cloudRelay?.info() || { enabled: !!connections?.cloud?.enabled };
+  return { enabled: !!live, urls: [...new Set(urls)], port: PORT, error: remoteError,
+    ...live?.info(), cloud: { ...cloudInfo, controllerToken: connections?.cloud?.controllerToken || '' } };
 }
 function connectionsChanged() {
   send(controlWindow, 'connection:changed', { output: recovery.state(), remote: remoteInfo(), displays: displays() });
   live?.update();
+  cloudRelay?.publish(publicState('control'));
 }
 function publicItem(item) {
   if (!item) return null;
@@ -114,16 +119,18 @@ function dispatch(command) {
     send(controlWindow, 'operator:action', { id, command });
   });
 }
+const REMOTE_ACTIONS = new Set(['play','pause','previous','next','take','lock','loop','blackout','logo','move','edit','remove','clear','addRule','editRule','removeRule','display','showFolder']);
+function dispatchRemoteCommand(command) {
+  if (!command || !REMOTE_ACTIONS.has(command.action)) throw new Error('Comando inválido.');
+  return dispatch(command);
+}
 async function setRemote(enable) {
   remoteError = '';
   if (enable && !live) {
     const secret = connections.secret || crypto.randomBytes(32).toString('hex');
     const service = createLiveServer({ secret, srcDir: path.join(__dirname, 'src'), uploadDir: path.join(DATA_DIR, 'recebidos'),
       snapshot: publicState, media: id => operatorState?.playlist.find(item => item.id === id) || (output.item?.id === id && output.item),
-      dispatch: command => {
-        if (!command || !['play','pause','previous','next','take','lock','loop','blackout','logo','move','edit','remove','clear','addRule','editRule','removeRule','display','showFolder'].includes(command.action)) throw new Error('Comando inválido.');
-        return dispatch(command);
-      },
+      dispatch: dispatchRemoteCommand,
       imported: (file, name) => dispatch({ action: 'import', file, name }), onChange: connectionsChanged });
     try { await service.listen(PORT); }
     catch (error) {
@@ -146,6 +153,37 @@ async function setRemote(enable) {
 }
 function queueRemote(enable) {
   transition = transition.catch(() => {}).then(() => setRemote(enable));
+  return transition;
+}
+
+async function setCloudRemote(config) {
+  const value = config && typeof config === 'object' ? config : { enabled: config === true };
+  if (!value.enabled) {
+    cloudRelay?.stop();
+    cloudRelay = null;
+    connections.cloud = { enabled: false };
+  } else {
+    const serverUrl = String(value.serverUrl || '').trim().replace(/\/$/, '');
+    const room = String(value.room || '').trim();
+    const token = String(value.token || '').trim();
+    if (!serverUrl || !room || !token) throw new Error('Informe URL, sala e token do relay remoto.');
+    cloudRelay?.stop();
+    cloudRelay = createRemoteRelay({
+      serverUrl, room, token,
+      dispatch: dispatchRemoteCommand,
+      snapshot: () => publicState('control'),
+      onChange: () => connectionsChanged(),
+      logger: { warn: error => { remoteError = String(error); } },
+    });
+    cloudRelay.start();
+    connections.cloud = { enabled: true, serverUrl, room, token, controllerToken: String(value.controllerToken || '') };
+  }
+  writeJson(CONNECTIONS_FILE, connections);
+  connectionsChanged();
+  return remoteInfo();
+}
+function queueCloudRemote(config) {
+  transition = transition.catch(() => {}).then(() => setCloudRemote(config));
   return transition;
 }
 
@@ -178,6 +216,7 @@ app.whenReady().then(() => {
   });
   createWindows();
   if (connections.remote) queueRemote(true);
+  if (connections.cloud?.enabled) queueCloudRemote(connections.cloud);
   screen.on('display-added', () => recovery.refresh());
   screen.on('display-removed', (_event, d) => recovery.refresh(d.id));
   screen.on('display-metrics-changed', () => recovery.refresh());
@@ -185,7 +224,7 @@ app.whenReady().then(() => {
   powerMonitor.on('resume', () => recovery.resume());
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindows(); });
 });
-app.on('before-quit', () => { quitting = true; recovery?.suspend(); live?.close(); });
+app.on('before-quit', () => { quitting = true; recovery?.suspend(); live?.close(); cloudRelay?.stop(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 ipcMain.handle('files:choose', async () => {
@@ -214,6 +253,18 @@ ipcMain.handle('connection:get', () => ({ output: recovery.state(), remote: remo
 ipcMain.handle('connection:wireless-name', (_e, name) => recovery.setCastName(name));
 ipcMain.handle('remote:enable', (_e, value) => queueRemote(value === true));
 ipcMain.handle('remote:renew', () => { live?.renew(); connectionsChanged(); return remoteInfo(); });
+ipcMain.handle('remote:cloud', (_e, config) => queueCloudRemote(config));
+ipcMain.handle('remote:cloud-provision', async (_e, serverUrl) => {
+  const base = String(serverUrl || '').trim().replace(/\/$/, '');
+  if (!/^https?:\/\//i.test(base)) throw new Error('Informe a URL HTTP/HTTPS do relay remoto.');
+  const response = await fetch(`${base}/api/rooms`, { method: 'POST', headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`O relay remoto recusou a criação da sala (HTTP ${response.status}).`);
+  const data = await response.json();
+  if (!data.room || !data.desktopToken) throw new Error('O relay não devolveu um token de desktop válido.');
+  const config = { enabled: true, serverUrl: base, room: String(data.room), token: String(data.desktopToken), controllerToken: String(data.controllerToken || '') };
+  await setCloudRemote(config);
+  return { ...remoteInfo(), provisioned: { room: config.room, controllerToken: config.controllerToken, displayToken: String(data.displayToken || '') } };
+});
 ipcMain.on('display:command', (event, payload) => {
   if (event.sender !== controlWindow?.webContents) return;
   output.command(payload); publishOutput();

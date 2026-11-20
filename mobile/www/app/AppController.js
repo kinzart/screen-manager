@@ -186,7 +186,7 @@ export class AppController {
     this._renderSettingsScreen();
     await this._applyLogoToPresenter();
     if (this._settings.remote?.enabled && this._settings.remote.serverUrl && this._settings.remote.room) {
-      this._connectRemotePresentation(this._settings.remote.serverUrl, this._settings.remote.room);
+      this._connectRemotePresentation(this._settings.remote.serverUrl, this._settings.remote.room, this._settings.remote.token);
     }
     this._shell.showEditor();
   }
@@ -533,9 +533,9 @@ export class AppController {
   // --- controle remoto (TV via servidor de retransmissão) ---
 
   /** Troca a apresentação ativa para a TV remota (mesma interface PresentationAdapter). */
-  _connectRemotePresentation(serverUrl, room) {
+  _connectRemotePresentation(serverUrl, room, token = '') {
     if (this._presentation instanceof RemoteDesktopAdapter) this._presentation.disconnect();
-    const remote = new RemoteDesktopAdapter({ serverUrl, room, media: this._media, logger: this._logger });
+    const remote = new RemoteDesktopAdapter({ serverUrl, room, token, media: this._media, logger: this._logger });
     remote.onStatus((status) => this._onPresentationStatus(status));
     this._presentation = remote;
   }
@@ -545,15 +545,16 @@ export class AppController {
    * código de 4 dígitos mostrado na TV). Persiste a escolha — reconecta
    * automaticamente na próxima abertura do app enquanto estiver ativado.
    */
-  async connectRemote(serverUrl, room) {
+  async connectRemote(serverUrl, room, token = '') {
     const cleanServerUrl = String(serverUrl || '').trim().replace(/\/$/, '');
     const cleanRoom = String(room || '').trim();
     if (!cleanServerUrl || !cleanRoom) {
       this._reportUserError('Informe o endereço do servidor e o código da TV.');
       return;
     }
-    this._connectRemotePresentation(cleanServerUrl, cleanRoom);
-    this._settings = { ...this._settings, remote: { enabled: true, serverUrl: cleanServerUrl, room: cleanRoom } };
+    const cleanToken = String(token || '').trim();
+    this._connectRemotePresentation(cleanServerUrl, cleanRoom, cleanToken);
+    this._settings = { ...this._settings, remote: { enabled: true, serverUrl: cleanServerUrl, room: cleanRoom, token: cleanToken } };
     this._renderSettingsScreen();
     await this._flushSave();
   }

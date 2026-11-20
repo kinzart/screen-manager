@@ -127,7 +127,7 @@ export function validateLogoSettings(logo) {
 }
 
 /** Configuração padrão do controle remoto — desativado até o usuário conectar a uma TV. */
-export const DEFAULT_REMOTE_SETTINGS = Object.freeze({ enabled: false, serverUrl: '', room: '' });
+export const DEFAULT_REMOTE_SETTINGS = Object.freeze({ enabled: false, serverUrl: '', room: '', token: '' });
 
 /** Valida a sub-config de controle remoto dentro de Settings. Permissivo: aceita ausência (usa defaults). */
 export function validateRemoteSettings(remote) {
@@ -136,6 +136,7 @@ export function validateRemoteSettings(remote) {
   if (remote.enabled !== undefined && typeof remote.enabled !== 'boolean') fail('Settings.remote.enabled deve ser boolean');
   if (remote.serverUrl !== undefined && typeof remote.serverUrl !== 'string') fail('Settings.remote.serverUrl deve ser string');
   if (remote.room !== undefined && typeof remote.room !== 'string') fail('Settings.remote.room deve ser string');
+  if (remote.token !== undefined && typeof remote.token !== 'string') fail('Settings.remote.token deve ser string');
   return true;
 }
 

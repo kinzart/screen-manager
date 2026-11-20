@@ -16,3 +16,4 @@
 .pair-codes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;color:var(--muted)}
 .pair-codes strong{display:block;font-size:19px;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:1px}
 #shareError:not(:empty){color:#ffaaa1}.preview .brand-logo{width:55%;height:65%}
+.cloud-remote{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}.cloud-remote label{display:block;color:var(--muted);font-size:11px;margin-top:8px}.cloud-remote input{margin-top:4px}.cloud-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:7px}.cloud-actions{display:grid;grid-template-columns:1fr;gap:4px}.cloud-actions button{margin-top:5px}.cloud-remote code{display:block;overflow-wrap:anywhere;user-select:all;background:var(--bg);padding:8px;border-radius:6px;color:var(--accent);font-size:11px}.cloud-remote .muted{color:var(--muted);font-size:11px}

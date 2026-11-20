@@ -34,11 +34,17 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SUPPORTED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'video/mp4', 'video/webm']);
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500MB — limite de segurança, não uma promessa de performance
 const ROOM_CODE_TTL_MS = 6 * 60 * 60 * 1000; // sala sem display conectado expira em 6h
+const WS_HEARTBEAT_MS = 30 * 1000;
+const REQUIRE_TOKENS = /^(1|true|yes)$/i.test(String(process.env.REMOTE_REQUIRE_TOKENS || ''));
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
 /** @type {Map<string, {displayWs: any, controllers: Set<any>, media: Map<string,{file:string,mime:string}>, createdAt: number}>} */
 const rooms = new Map();
+
+function createToken() {
+  return crypto.randomBytes(32).toString('base64url');
+}
 
 function generateRoomCode() {
   let code;
@@ -54,6 +60,7 @@ function json(res, status, data) {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Media-Mime, X-Media-Name',
   });
   res.end(body);
 }
@@ -85,9 +92,32 @@ function broadcastToRoomControllers(room, payload) {
   }
 }
 
+function requestToken(req, url) {
+  const authorization = String(req.headers.authorization || '');
+  if (/^Bearer\s+/i.test(authorization)) return authorization.replace(/^Bearer\s+/i, '').trim();
+  return url.searchParams.get('token') || '';
+}
+
+function hasRoleToken(req, url, room, role) {
+  if (!REQUIRE_TOKENS) return true;
+  return requestToken(req, url) === room.tokens?.[role];
+}
+
+function hasAnyRoomToken(req, url, room) {
+  if (!REQUIRE_TOKENS) return true;
+  const token = requestToken(req, url);
+  return token === room.tokens?.display || token === room.tokens?.controller || token === room.tokens?.desktop;
+}
+
 function sendToDisplay(room, payload) {
   if (room.displayWs && room.displayWs.readyState === room.displayWs.OPEN) {
     room.displayWs.send(JSON.stringify(payload));
+  }
+}
+
+function sendToDesktop(room, payload) {
+  if (room.desktopWs && room.desktopWs.readyState === room.desktopWs.OPEN) {
+    room.desktopWs.send(JSON.stringify(payload));
   }
 }
 
@@ -98,7 +128,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,X-Media-Mime,X-Media-Name',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Media-Mime,X-Media-Name',
     });
     return res.end();
   }
@@ -120,8 +150,22 @@ const server = http.createServer((req, res) => {
   // --- criar sala (chamado pela página /display ao carregar) ---
   if (req.method === 'POST' && url.pathname === '/api/rooms') {
     const code = generateRoomCode();
-    rooms.set(code, { displayWs: null, controllers: new Set(), media: new Map(), createdAt: Date.now() });
-    return json(res, 200, { room: code });
+    const displayToken = createToken();
+    const controllerToken = createToken();
+    const desktopToken = createToken();
+    const expiresAt = Date.now() + ROOM_CODE_TTL_MS;
+    rooms.set(code, {
+      displayWs: null, desktopWs: null, controllers: new Set(), media: new Map(), createdAt: Date.now(),
+      expiresAt, tokens: { display: displayToken, controller: controllerToken, desktop: desktopToken },
+    });
+    return json(res, 200, {
+      room: code,
+      displayToken,
+      controllerToken,
+      desktopToken,
+      expiresAt,
+      authRequired: REQUIRE_TOKENS,
+    });
   }
 
   // --- upload de mídia (chamado pelo celular) ---
@@ -129,6 +173,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && uploadMatch) {
     const room = rooms.get(uploadMatch[1]);
     if (!room) return json(res, 404, { error: 'room_not_found' });
+    if (!hasRoleToken(req, url, room, 'controller')) return json(res, 401, { error: 'controller_token_required' });
     const mime = req.headers['x-media-mime'] || '';
     if (!SUPPORTED_MIME.has(mime)) return json(res, 400, { error: 'unsupported_mime', mime });
 
@@ -154,7 +199,9 @@ const server = http.createServer((req, res) => {
     writeStream.on('finish', () => {
       if (aborted) return;
       room.media.set(mediaId, { file: fileName, mime });
-      json(res, 200, { mediaId, url: `/media/${uploadMatch[1]}/${mediaId}` });
+      const mediaUrl = `/media/${uploadMatch[1]}/${mediaId}` +
+        (REQUIRE_TOKENS ? `?token=${encodeURIComponent(room.tokens.display)}` : '');
+      json(res, 200, { mediaId, url: mediaUrl });
     });
     writeStream.on('error', () => {
       if (!aborted) json(res, 500, { error: 'write_failed' });
@@ -168,6 +215,7 @@ const server = http.createServer((req, res) => {
     const room = rooms.get(mediaMatch[1]);
     const entry = room?.media.get(mediaMatch[2]);
     if (!entry) return notFound(res);
+    if (!hasAnyRoomToken(req, url, room)) return json(res, 401, { error: 'display_token_required' });
     const filePath = path.join(MEDIA_DIR, entry.file);
     fs.stat(filePath, (error, stat) => {
       if (error) return notFound(res);
@@ -197,7 +245,7 @@ server.on('upgrade', (req, socket, head) => {
   const roomCode = url.searchParams.get('room');
   const room = rooms.get(roomCode);
 
-  if (!room || (role !== 'display' && role !== 'controller')) {
+  if (!room || !['display', 'controller', 'desktop'].includes(role) || !hasRoleToken(req, url, room, role)) {
     socket.destroy();
     return;
   }
@@ -206,11 +254,19 @@ server.on('upgrade', (req, socket, head) => {
     if (role === 'display') {
       room.displayWs = ws;
       broadcastToRoomControllers(room, { type: 'display-connected' });
+    } else if (role === 'desktop') {
+      if (room.desktopWs && room.desktopWs !== ws) room.desktopWs.close(4002, 'desktop-replaced');
+      room.desktopWs = ws;
+      broadcastToRoomControllers(room, { type: 'desktop-connected' });
+      ws.send(JSON.stringify({ type: 'state-request' }));
     } else {
       room.controllers.add(ws);
       ws.send(JSON.stringify({ type: 'connected', room: roomCode }));
-      sendToDisplay(room, { type: 'controller-connected' });
+      if (room.desktopWs) sendToDesktop(room, { type: 'controller-connected' });
+      else sendToDisplay(room, { type: 'controller-connected' });
     }
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('message', (raw) => {
       let payload;
@@ -220,8 +276,12 @@ server.on('upgrade', (req, socket, head) => {
         return; // mensagem inválida — ignorada, nunca derruba a conexão
       }
       if (role === 'controller') {
-        // Comando do celular → TV.
-        sendToDisplay(room, payload);
+        // Comando do celular → desktop (preferencial) ou TV browser legado.
+        if (room.desktopWs) sendToDesktop(room, payload);
+        else sendToDisplay(room, payload);
+      } else if (role === 'desktop') {
+        // Snapshot/status do desktop → todos os celulares da sala.
+        broadcastToRoomControllers(room, payload);
       } else {
         // Status/erro da TV → todos os celulares controlando esta sala.
         broadcastToRoomControllers(room, payload);
@@ -232,12 +292,31 @@ server.on('upgrade', (req, socket, head) => {
       if (role === 'display') {
         room.displayWs = null;
         broadcastToRoomControllers(room, { type: 'display-disconnected' });
+      } else if (role === 'desktop') {
+        if (room.desktopWs === ws) room.desktopWs = null;
+        broadcastToRoomControllers(room, { type: 'desktop-disconnected' });
       } else {
         room.controllers.delete(ws);
       }
     });
   });
 });
+
+// Detecta conexões presas atrás de NAT/roteadores e informa o navegador para
+// que ele refaça o handshake. Sem ping, uma queda de Wi-Fi pode deixar um
+// WebSocket aparentemente aberto por vários minutos.
+const heartbeat = setInterval(() => {
+  for (const room of rooms.values()) {
+    const sockets = [room.displayWs, room.desktopWs, ...room.controllers];
+    for (const ws of sockets) {
+      if (!ws || ws.readyState !== ws.OPEN) continue;
+      if (ws.isAlive === false) { ws.terminate(); continue; }
+      ws.isAlive = false;
+      ws.ping();
+    }
+  }
+}, WS_HEARTBEAT_MS);
+heartbeat.unref();
 
 // Limpeza periódica: salas cujo display nunca conectou (ou caiu) e já
 // passaram do TTL são removidas, junto com a mídia associada.

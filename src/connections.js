@@ -1,4 +1,18 @@
 let remoteEnabled = false;
+let cloudRemote = { enabled: false };
+function renderCloudRemote(cloud = {}) {
+  cloudRemote = cloud;
+  const url = $("#cloudServerUrl"), room = $("#cloudRoom"), token = $("#cloudToken");
+  if (document.activeElement !== url && cloud.serverUrl) url.value = cloud.serverUrl;
+  if (document.activeElement !== room && cloud.room) room.value = cloud.room;
+  if (document.activeElement !== token && cloud.token) token.value = cloud.token;
+  const connected = cloud.enabled && cloud.connected;
+  $("#cloudStatus").textContent = connected
+    ? `Relay conectado · sala ${cloud.room || "—"}`
+    : cloud.enabled ? (cloud.lastError || "Conectando ao relay…") : "Relay desativado.";
+  $("#cloudControllerToken").textContent = cloud.controllerToken || "—";
+  $("#cloudPhoneInfo").hidden = !cloud.controllerToken;
+}
 function showConnections({ output, remote, displays }) {
   const wasBlocked = outputBlocked;
   outputBlocked = output.blocked;
@@ -13,6 +27,7 @@ function showConnections({ output, remote, displays }) {
   $("#shareToggle").textContent = remote.enabled ? "Desativar acesso remoto" : "Ativar acesso pelo celular e TV";
   $("#shareInfo").hidden = !remote.enabled;
   $("#shareError").textContent = remote.error || "";
+  renderCloudRemote(remote.cloud || {});
   if (!remote.enabled) return;
   $("#shareAddresses").replaceChildren(...remote.urls.map(address => {
     const node = document.createElement("code"); node.textContent = address; return node;
@@ -29,6 +44,24 @@ $("#shareToggle").onclick = async () => {
   catch (error) { toast(error.message); }
   finally { $("#shareToggle").disabled = false; }
 };
+$("#cloudProvision").onclick = async () => {
+  const button = $("#cloudProvision");
+  button.disabled = true;
+  try {
+    const result = await window.fbs.provisionCloudRemote($("#cloudServerUrl").value);
+    renderCloudRemote(result.cloud || {});
+    if (result.provisioned?.controllerToken) $("#cloudControllerToken").textContent = result.provisioned.controllerToken;
+    toast("Sessão remota criada. Guarde o token do controle móvel.");
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
+};
+$("#cloudConnect").onclick = async () => {
+  try {
+    const result = await window.fbs.configureCloudRemote({ enabled: true, serverUrl: $("#cloudServerUrl").value, room: $("#cloudRoom").value, token: $("#cloudToken").value, controllerToken: $("#cloudControllerToken").textContent === "—" ? "" : $("#cloudControllerToken").textContent });
+    renderCloudRemote(result.cloud || {});
+  } catch (error) { toast(error.message); }
+};
+$("#cloudDisconnect").onclick = () => window.fbs.configureCloudRemote({ enabled: false }).catch(error => toast(error.message));
 $("#renewCodes").onclick = () => window.fbs.renewCodes().catch(error => toast(error.message));
 $("#saveCast").onclick = () => window.fbs.setCastName($("#castName").value).catch(error => toast(error.message));
 window.fbs.onConnection(showConnections);

@@ -8,7 +8,8 @@
     "test": "node --test tests/control.test.js tests/output.test.js tests/live-server.test.js",
     "package": "electron-builder --win nsis",
     "package:linux": "electron-builder --linux AppImage deb",
-    "package:all": "electron-builder --win nsis --linux AppImage deb"
+    "package:all": "electron-builder --win nsis --linux AppImage deb",
+    "package:usb": "node scripts/make-usb-bundle.mjs"
   },
   "dependencies": {
     "ws": "^8.21.0"

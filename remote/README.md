@@ -13,8 +13,16 @@ mini PC ligado à TV); o celular conecta ao mesmo servidor com o código de
 2. No app mobile: Configurações → Controle Remoto → informe o endereço do
    servidor e o código → Conectar.
 3. Comandos (apresentar, blackout, logo, pause, próximo…) saem do celular,
-   passam pelo servidor, chegam na TV. Mídia (fotos/vídeos) é enviada do
+   passam pelo servidor e chegam à TV. Mídia (fotos/vídeos) é enviada do
    celular para o servidor e servida dali para a TV.
+
+O Electron também pode entrar na mesma sala como `desktop` usando o token
+`desktopToken` devolvido por `POST /api/rooms`. Quando esse papel está
+conectado, os comandos do celular são roteados para o computador (que executa
+as ações na saída HDMI/projetor/TV e publica o snapshot do estado); se ele não
+estiver conectado, o relay mantém o comportamento legado e envia os comandos
+diretamente para a TV navegador. O módulo `desktop/remote-relay.js` mantém a
+conexão de saída WSS, reconecta com backoff e responde a `state-request`.
 
 Tudo em memória — nenhum banco de dados. Uma sala "morre" quando a aba da
 TV é fechada; a mídia enviada fica em disco (`data/media/`) até a sala
@@ -55,6 +63,43 @@ gratuito, o que é aceitável para uso pessoal):
 8. Após o deploy, você recebe uma URL pública (ex.:
    `https://fbs-remote.onrender.com`) — é esse endereço que a TV abre em
    `/display` e que você digita em Configurações → Controle Remoto no app.
+
+### Desktop conectado ao projetor
+
+O mesmo relay também pode controlar o Screen Manager instalado no computador
+do evento. No painel Windows/Linux, informe a URL do relay e use **Criar sessão
+remota**. O aplicativo chama `POST /api/rooms`, guarda o `desktopToken` e abre
+uma conexão de saída WebSocket com `role=desktop`. O celular usa a URL, o número
+da sala e o `controllerToken`; os comandos chegam ao desktop mesmo quando o
+celular está em outra rede ou outra cidade. O projetor continua ligado
+localmente ao computador, por HDMI/DisplayPort ou pela saída local `/tv`.
+
+Em uma integração manual, a conexão do desktop tem este formato:
+
+```text
+wss://seu-relay.exemplo.com/ws?role=desktop&room=1234&token=desktopToken
+```
+
+O desktop mantém reconexão exponencial e publica snapshots do estado. Se a
+internet cair, a apresentação local continua; quando o relay volta, o estado
+é enviado novamente.
+
+### Sessões seguras e reconexão
+
+Cada sala agora recebe tokens aleatórios separados para a tela e para o
+controle. O navegador da TV usa o token de exibição e o servidor envia
+heartbeats para encerrar conexões presas; a página refaz a conexão com
+intervalo progressivo quando a internet cai. Para exigir token também no
+WebSocket, nos uploads e na leitura de mídia, defina no provedor:
+
+```text
+REMOTE_REQUIRE_TOKENS=true
+```
+
+O modo sem essa variável continua compatível com clientes v1 que ainda usam
+apenas o código de quatro dígitos. O cliente atualizado deve enviar o token
+no cabeçalho `Authorization: Bearer ...` para upload e na query do WebSocket.
+Em produção, use sempre HTTPS/WSS e um armazenamento persistente para mídia.
 
 ### Armazenamento persistente (opcional)
 

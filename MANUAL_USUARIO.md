@@ -251,6 +251,19 @@ Salve o endereço nos favoritos. Em navegadores que oferecem instalação de apl
 
 ## 17. Controlar o evento de outra cidade
 
+### Relay online (recomendado para acesso web)
+
+O repositório inclui um servidor de retransmissão em `remote/`. Hospede a
+pasta em um serviço Node.js com HTTPS/WebSocket, por exemplo Render, Railway,
+Fly.io ou um VPS. No painel do Screen Manager, em **Conexões**, informe a URL
+do relay e clique em **Criar sessão remota**. O aplicativo gera uma sala,
+conecta o computador por uma conexão de saída e mostra o token do controle
+móvel. O celular pode estar em outra cidade e não precisa estar na mesma rede.
+
+O projetor continua conectado ao computador do evento. Se a internet cair, o
+palco local continua funcionando e a conexão remota tenta voltar sozinha.
+Configure `REMOTE_REQUIRE_TOKENS=true` no servidor e use HTTPS/WSS em produção.
+
 Uma opção é conectar o PC do evento e o iPhone à mesma rede privada Tailscale. Com o acesso remoto habilitado no Screen Manager, execute no PC do evento:
 
 ```powershell

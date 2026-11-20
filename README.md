@@ -27,6 +27,16 @@ Em Windows e Linux, as saídas HDMI/DisplayPort usam a API `screen` do Electron 
 
 O helper PowerShell de reconexão Miracast é exclusivo do Windows e só é incluído na distribuição Windows. Uma saída sem fio no Linux depende das ferramentas e do suporte do sistema; ela não tem garantia de usar o mesmo backend Miracast nem a mesma reconexão automática do helper Windows. A saída pelo navegador da TV usa a rede IP e é uma alternativa independente desse helper.
 
+### Controle remoto pela internet
+
+O projeto também inclui um relay Node.js em `remote/`. Hospede essa pasta em
+um serviço com HTTPS/WebSocket, crie uma sessão remota no painel do computador
+e conecte o celular usando a URL, a sala e o token exibidos. O computador abre
+a conexão de saída e continua ligado ao projetor; celular e computador não
+precisam estar na mesma rede. Se a internet cair, a apresentação local
+continua e o desktop reconecta quando o relay voltar. Em produção, configure
+`REMOTE_REQUIRE_TOKENS=true` no servidor.
+
 ## Requisitos
 
 - Windows 10 ou 11, ou Linux com ambiente gráfico compatível com Electron.

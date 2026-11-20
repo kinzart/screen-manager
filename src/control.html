@@ -22,6 +22,18 @@
           <div class="pair-codes"><div>Controle do celular<strong id="phoneCode"></strong></div><div>Exibição na TV<strong id="tvCode"></strong></div></div>
           <p id="pairExpiry"></p><button id="renewCodes">Gerar novos códigos</button><p id="clientCount"></p>
         </div><p id="shareError" role="status"></p>
+        <div class="cloud-remote">
+          <p><strong>Modo remoto pela internet</strong><br><span class="muted">O computador mantém a conexão de saída com o relay. O celular pode estar em outra rede.</span></p>
+          <label for="cloudServerUrl">URL do relay</label>
+          <input id="cloudServerUrl" type="url" placeholder="https://seu-relay.exemplo.com" autocomplete="url">
+          <div class="cloud-grid">
+            <label for="cloudRoom">Sala<input id="cloudRoom" inputmode="numeric" maxlength="4" placeholder="Gerar no relay"></label>
+            <label for="cloudToken">Token do desktop<input id="cloudToken" type="password" autocomplete="off" placeholder="Gerado no relay"></label>
+          </div>
+          <div class="cloud-actions"><button id="cloudProvision" class="wide">Criar sessão remota</button><button id="cloudConnect" class="wide">Conectar esta sessão</button><button id="cloudDisconnect" class="quiet wide">Desconectar relay</button></div>
+          <p id="cloudStatus" role="status"></p>
+          <div id="cloudPhoneInfo" hidden><p>Token para o controle móvel:</p><code id="cloudControllerToken"></code><p class="muted">Guarde este token junto com a URL e a sala. O app móvel usará esses dados para controlar o computador.</p></div>
+        </div>
       </details>
       <section class="file-card"><div class="label-row"><span>ARQUIVOS</span><span id="fileCount">0</span></div><div id="filePanel" class="file-panel"></div></section>
       <details><summary>Regras por horário <span>＋</span></summary><div id="rules"></div><button id="addRule" class="quiet wide">Adicionar regra</button></details>

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('fbs', {
   connection: () => ipcRenderer.invoke('connection:get'),
   setCastName: name => ipcRenderer.invoke('connection:wireless-name', name),
   enableRemote: enable => ipcRenderer.invoke('remote:enable', enable),
+  configureCloudRemote: config => ipcRenderer.invoke('remote:cloud', config),
+  provisionCloudRemote: serverUrl => ipcRenderer.invoke('remote:cloud-provision', serverUrl),
   renewCodes: () => ipcRenderer.invoke('remote:renew'),
   publishState: state => ipcRenderer.send('operator:state', state),
   actionResult: result => ipcRenderer.send('operator:result', result),

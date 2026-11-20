@@ -18,10 +18,14 @@ const KNOWN_TRANSITIONS = ['cut', 'fade', 'slide-left', 'slide-up', 'zoom'];
 let ws = null;
 let currentMediaEl = null;
 let roomCode = null;
+let displayToken = '';
+let reconnectTimer = null;
+let reconnectDelay = 1000;
 
-function wsUrl(room) {
+function wsUrl(room, token) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}/ws?role=display&room=${room}`;
+  const query = new URLSearchParams({ role: 'display', room, token });
+  return `${protocol}//${location.host}/ws?${query}`;
 }
 
 function clearMediaSlot() {
@@ -98,8 +102,12 @@ function handleCommand(cmd) {
 }
 
 function connectWebSocket(room) {
-  ws = new WebSocket(wsUrl(room));
-  ws.addEventListener('open', () => { disconnectedEl.hidden = true; });
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+  ws = new WebSocket(wsUrl(room, displayToken));
+  ws.addEventListener('open', () => {
+    reconnectDelay = 1000;
+    disconnectedEl.hidden = true;
+  });
   ws.addEventListener('message', (event) => {
     let payload;
     try { payload = JSON.parse(event.data); } catch { return; }
@@ -107,7 +115,10 @@ function connectWebSocket(room) {
   });
   ws.addEventListener('close', () => {
     disconnectedEl.hidden = false;
-    setTimeout(() => connectWebSocket(room), 2000);
+    ws = null;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => connectWebSocket(room), reconnectDelay);
+    reconnectDelay = Math.min(15000, Math.round(reconnectDelay * 1.7));
   });
   ws.addEventListener('error', () => ws.close());
 }
@@ -117,6 +128,7 @@ async function init() {
     const response = await fetch('/api/rooms', { method: 'POST' });
     const data = await response.json();
     roomCode = data.room;
+    displayToken = data.displayToken || '';
     pairingCodeEl.textContent = roomCode;
     connectWebSocket(roomCode);
   } catch (error) {

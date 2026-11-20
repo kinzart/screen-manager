@@ -127,7 +127,7 @@ export class SettingsScreen {
     // internet, controlado por este celular. Ver mobile/REMOTE_CONTROL.md.
     const remoteSection = this._doc.createElement('section');
     remoteSection.className = 'settings-section';
-    remoteSection.innerHTML = '<div class="settings-section-title">Controle Remoto (TV)</div><p style="color:var(--text-muted);font-size:var(--font-size-xs);margin:0">Abra o endereço do servidor no navegador da TV (ex.: Smart TV, Chromecast, Fire TV) — ela mostrará um código de 4 dígitos. Digite o endereço e o código aqui para conectar.</p>';
+    remoteSection.innerHTML = '<div class="settings-section-title">Controle Remoto (TV/computador)</div><p style="color:var(--text-muted);font-size:var(--font-size-xs);margin:0">Informe a URL do relay e a sala. Para um relay seguro, cole também o token do controlador mostrado pelo computador.</p>';
 
     const serverLabel = this._doc.createElement('label');
     serverLabel.className = 'form-field';
@@ -149,9 +149,19 @@ export class SettingsScreen {
     this.remoteRoomInput.setAttribute('aria-label', 'Código de 4 dígitos mostrado na TV');
     roomLabel.appendChild(this.remoteRoomInput);
 
+    const tokenLabel = this._doc.createElement('label');
+    tokenLabel.className = 'form-field';
+    tokenLabel.innerHTML = '<span>Token do controlador (opcional)</span>';
+    this.remoteTokenInput = this._doc.createElement('input');
+    this.remoteTokenInput.type = 'password';
+    this.remoteTokenInput.autocomplete = 'off';
+    this.remoteTokenInput.placeholder = 'Cole o token quando o relay exigir';
+    this.remoteTokenInput.setAttribute('aria-label', 'Token do controlador do relay remoto');
+    tokenLabel.appendChild(this.remoteTokenInput);
+
     const remoteGrid = this._doc.createElement('div');
     remoteGrid.className = 'form-grid';
-    remoteGrid.append(serverLabel, roomLabel);
+    remoteGrid.append(serverLabel, roomLabel, tokenLabel);
 
     this.remoteStatusEl = this._doc.createElement('div');
     this.remoteStatusEl.className = 'settings-row-label';
@@ -163,7 +173,7 @@ export class SettingsScreen {
     this.remoteConnectButtonEl.className = 'btn btn-primary';
     this.remoteConnectButtonEl.innerHTML = `${icon('presentation')}<span>Conectar</span>`;
     this.remoteConnectButtonEl.addEventListener('click', () => {
-      this._handlers.connectRemote.forEach((cb) => cb(this.remoteServerInput.value, this.remoteRoomInput.value));
+      this._handlers.connectRemote.forEach((cb) => cb(this.remoteServerInput.value, this.remoteRoomInput.value, this.remoteTokenInput.value));
     });
     this.remoteDisconnectButtonEl = this._doc.createElement('button');
     this.remoteDisconnectButtonEl.type = 'button';
@@ -232,6 +242,7 @@ export class SettingsScreen {
     const remote = settings.remote || {};
     if (remote.serverUrl) this.remoteServerInput.value = remote.serverUrl;
     if (remote.room) this.remoteRoomInput.value = remote.room;
+    if (remote.token) this.remoteTokenInput.value = remote.token;
     this.renderRemoteStatus({ connected: !!remote.enabled });
 
     const logo = settings.logo || {};

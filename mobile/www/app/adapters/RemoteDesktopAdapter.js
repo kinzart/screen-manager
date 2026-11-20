@@ -24,11 +24,11 @@ const DEFAULT_LOGGER = {
   },
 };
 
-function wsUrlFor(serverUrl, room) {
+function wsUrlFor(serverUrl, room, token = '') {
   const url = new URL(serverUrl);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   url.pathname = '/ws';
-  url.search = `?role=controller&room=${encodeURIComponent(room)}`;
+  url.search = `?role=controller&room=${encodeURIComponent(room)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
   return url.toString();
 }
 
@@ -37,18 +37,20 @@ export class RemoteDesktopAdapter extends PresentationAdapter {
    * @param {object} deps
    * @param {string} deps.serverUrl - ex.: "https://fbs-remote.exemplo.com" (sem barra final).
    * @param {string} deps.room - código de 4 dígitos mostrado na TV.
+   * @param {string} [deps.token] - token opcional do controlador em relay seguro.
    * @param {import('../core/ports.js').MediaPort} deps.media - usado para readBlob(mediaRef).
    * @param {(WebSocket: typeof WebSocket)} [deps.WebSocketImpl] - injeção para testes; default: WebSocket global.
    * @param {typeof fetch} [deps.fetchImpl] - injeção para testes; default: fetch global.
    * @param {{warn:(payload:object)=>void}} [deps.logger]
    */
-  constructor({ serverUrl, room, media, WebSocketImpl, fetchImpl, logger } = {}) {
+  constructor({ serverUrl, room, token = '', media, WebSocketImpl, fetchImpl, logger } = {}) {
     super();
     if (!serverUrl) throw new Error('RemoteDesktopAdapter: "serverUrl" é obrigatório');
     if (!room) throw new Error('RemoteDesktopAdapter: "room" é obrigatório');
     if (!media) throw new Error('RemoteDesktopAdapter: "media" é obrigatório');
     this._serverUrl = serverUrl.replace(/\/$/, '');
     this._room = room;
+    this._token = String(token || '').trim();
     this._media = media;
     this._WebSocket = WebSocketImpl || (typeof WebSocket !== 'undefined' ? WebSocket : undefined);
     if (!this._WebSocket) throw new Error('RemoteDesktopAdapter: WebSocket indisponível neste ambiente e nenhum WebSocketImpl foi injetado');
@@ -65,7 +67,7 @@ export class RemoteDesktopAdapter extends PresentationAdapter {
   _connect() {
     if (this._connectPromise) return this._connectPromise;
     this._connectPromise = new Promise((resolve, reject) => {
-      const ws = new this._WebSocket(wsUrlFor(this._serverUrl, this._room));
+      const ws = new this._WebSocket(wsUrlFor(this._serverUrl, this._room, this._token));
       this._ws = ws;
       ws.addEventListener('open', () => resolve(ws));
       ws.addEventListener('error', (event) => {
@@ -102,7 +104,7 @@ export class RemoteDesktopAdapter extends PresentationAdapter {
     const uploadUrl = `${this._serverUrl}/api/rooms/${this._room}/media`;
     const response = await this._fetch(uploadUrl, {
       method: 'POST',
-      headers: { 'X-Media-Mime': item.media.mime },
+      headers: { 'X-Media-Mime': item.media.mime, ...(this._token ? { Authorization: `Bearer ${this._token}` } : {}) },
       body: blob,
     });
     if (!response.ok) {
