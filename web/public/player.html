@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11110f">
+  <title>Tela FBS</title>
+  <link rel="stylesheet" href="/player.css?v=1.0.1">
+  <script src="/vendor/qrcode.js?v=1.0.1" defer></script>
+  <script src="/player.js?v=1.0.1" defer></script>
+</head>
+<body>
+  <main id="tv-output" data-testid="tv-output" data-mode="connecting">
+    <div id="tv-stage" class="stage"></div>
+    <div id="tv-logo" class="logo-screen" hidden aria-label="FBS Studio">
+      <span class="screen-mark" aria-hidden="true"></span><span>FBS <span class="brand-secondary">Studio</span></span>
+    </div>
+    <section id="tv-idle" class="idle" aria-labelledby="tv-title">
+      <span class="screen-mark" aria-hidden="true"></span>
+      <h1 id="tv-title">Tela FBS</h1>
+      <p id="tv-caption">Conectando ao estúdio…</p>
+    </section>
+    <section id="tv-pairing" class="pairing" aria-labelledby="pair-title" hidden>
+      <div class="pair-card">
+        <div class="pair-details">
+          <span class="screen-mark" aria-hidden="true"></span>
+          <h1 id="pair-title">Parear esta tela</h1>
+          <p>Escaneie o QR ou informe este código no FBS Studio.</p>
+          <strong class="code" id="pair-code" data-testid="pair-code" aria-label="Código de pareamento"></strong>
+          <p id="pair-status" class="feedback" role="status">Conectando…</p>
+        </div>
+        <a id="pair-link" class="qr-link" href="/studio" hidden aria-label="Abrir FBS Studio para aprovar esta tela">
+          <img id="pair-qr" alt="QR para abrir este código no FBS Studio">
+        </a>
+        <form id="pair-form">
+          <label for="screen-name">Nome desta tela</label>
+          <input id="screen-name" value="Tela FBS" maxlength="80" required autocomplete="off">
+          <button id="new-code" type="submit">Gerar novo código</button>
+        </form>
+      </div>
+    </section>
+    <div class="tools" id="tv-tools">
+      <button type="button" id="tv-unlock" hidden>Ativar reprodução</button>
+      <button type="button" id="tv-fullscreen">Tela cheia</button>
+    </div>
+    <span id="tv-network" class="sr-only" role="status"></span>
+  </main>
+</body>
+</html>

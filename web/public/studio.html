@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11110f">
+  <title>FBS Studio</title>
+  <link rel="stylesheet" href="/studio.css?v=1.0.1">
+  <script src="/studio.js?v=1.0.1" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="/studio" aria-label="FBS Studio"><span class="brand-mark" aria-hidden="true"></span><span>FBS <span class="brand-secondary">Studio</span></span></a>
+    <div class="masthead-controls" id="masthead-controls" hidden>
+      <span class="connection" id="connection" data-state="connecting" role="status">Conectando</span>
+      <a class="button quiet" href="/tv" target="_blank" rel="noopener">Abrir receptor <span aria-hidden="true">↗</span></a>
+      <button type="button" class="quiet" id="logout">Sair</button>
+    </div>
+  </header>
+
+  <main class="login-layout" id="login-view" hidden>
+    <section class="login-card" aria-labelledby="login-title">
+      <h1 id="login-title">Acesso ao estúdio</h1>
+      <p>Entre para montar sessões e conectar as telas da apresentação.</p>
+      <form id="login-form" class="stack">
+        <label for="password">Senha do operador</label>
+        <input id="password" data-testid="login-password" type="password" autocomplete="current-password" required>
+        <button class="primary" data-testid="login-submit" type="submit">Entrar</button>
+      </form>
+      <p id="login-error" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <main class="studio" id="studio" hidden>
+    <section class="workspace-bar" aria-label="Espaço de apresentação">
+      <div class="workspace-field">
+        <label for="workspace">Espaço</label>
+        <select id="workspace" data-testid="workspace-select"></select>
+        <button id="new-space" data-testid="new-space" type="button">Novo espaço</button>
+      </div>
+      <p id="space-summary" class="workspace-summary"></p>
+    </section>
+
+    <div class="desk">
+      <section class="patchbay" aria-labelledby="graph-title">
+        <div class="panel-heading">
+          <div><h1 id="graph-title">Mapa de conexões</h1><p id="wire-hint">Ligue uma saída à entrada de uma tela.</p></div>
+          <button id="new-playlist" data-testid="new-playlist" class="primary" type="button"><span aria-hidden="true">+</span> Nova sessão</button>
+        </div>
+        <div class="graph-key" aria-hidden="true"><span><i></i>Sessões</span><span><i class="mirror-key"></i>Telas e espelhos</span></div>
+        <div class="graph-scroll" id="graph-scroll" tabindex="0" aria-label="Área rolável do mapa">
+          <div class="graph" id="graph" data-testid="graph">
+            <svg class="wires" id="wires" aria-hidden="true"><defs>
+              <marker id="arrow-playlist" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#e7ad3c"/></marker>
+              <marker id="arrow-screen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#65c8d0"/></marker>
+            </defs><g id="wire-lines"></g></svg>
+            <div id="nodes"></div>
+            <div class="graph-empty" id="graph-empty"><span class="empty-mark" aria-hidden="true"></span><strong>O mapa está vazio</strong><p>Crie uma sessão e pareie uma tela para enviar conteúdo.</p></div>
+          </div>
+        </div>
+        <div class="graph-footer"><span id="graph-count"></span><span>Arraste os nós para organizar o mapa</span></div>
+      </section>
+
+      <aside class="console" aria-label="Painel de operação">
+        <div class="tabs" aria-label="Painéis do estúdio">
+          <button type="button" id="tab-inspect" data-testid="inspect-tab" aria-controls="inspect" aria-pressed="true">Controle</button>
+          <button type="button" id="tab-library" data-testid="library-tab" aria-controls="library" aria-pressed="false">Biblioteca</button>
+          <button type="button" id="tab-pair" data-testid="pair-tab" aria-controls="pair" aria-pressed="false">Parear <span id="pair-badge" class="badge" hidden></span></button>
+        </div>
+        <div id="inspect" class="console-body" aria-labelledby="tab-inspect"></div>
+        <section id="library" class="console-body" aria-labelledby="tab-library" hidden>
+          <h2>Biblioteca do espaço</h2>
+          <label class="file-drop" for="upload-input">
+            <span class="file-title">Adicionar mídias</span>
+            <span>PNG, JPEG, WebP, GIF, MP4 e WebM</span>
+            <input id="upload-input" data-testid="upload-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm" multiple>
+          </label>
+          <div id="uploads" class="upload-list" aria-label="Progresso dos envios"></div>
+          <div id="media-list" class="list"></div>
+        </section>
+        <section id="pair" class="console-body" aria-labelledby="tab-pair" hidden>
+          <h2>Parear uma tela</h2>
+          <p>Abra o receptor no aparelho e confira o código aqui. A tela será adicionada ao espaço selecionado.</p>
+          <div class="receiver-address"><a id="tv-link" href="/tv" target="_blank" rel="noopener"></a><button type="button" id="copy-tv">Copiar</button></div>
+          <div id="pair-list" class="list"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="action-dialog" aria-labelledby="dialog-title">
+    <form id="action-form" class="stack">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-copy" hidden></p>
+      <label for="create-name" id="dialog-label">Nome</label>
+      <input data-testid="create-name" id="create-name" maxlength="80" required>
+      <p class="error" id="dialog-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="dialog-cancel" type="button">Cancelar</button><button class="primary" data-testid="create-submit" id="dialog-submit" type="submit">Salvar</button></div>
+    </form>
+  </dialog>
+  <p id="notice" class="notice" role="status" hidden></p>
+</body>
+</html>

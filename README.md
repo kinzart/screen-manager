@@ -19,6 +19,12 @@ Aplicativo para Windows e Linux para operar imagens e vídeos em eventos. O comp
 
 ## Conectar o iPhone ou uma TV
 
+### FBS Studio pela internet
+
+O novo [FBS Studio](https://screen-manager.kinzart.com.br/studio) permite enviar mídias e controlar sessões e telas em redes diferentes. Abra [o receptor](https://screen-manager.kinzart.com.br/tv) no projetor, TV ou notebook, aprove o código no painel e ligue os nós no mapa para distribuir ou espelhar o conteúdo. O QR do receptor abre o painel no código de pareamento. [Guia da versão web e servidor próprio](web/README.md).
+
+### Acesso na rede do computador
+
 No painel do computador, abra **Conexões → Ativar acesso pelo celular e TV**. No iPhone, abra no Safari um dos endereços exibidos e digite o código de controle. Na Android TV, abra o mesmo endereço com `/tv` no final e use o código de exibição. Os aparelhos podem usar Wi-Fi ou Ethernet na mesma rede. O manual também explica o acesso de outra cidade por uma rede privada. [Manual do usuário](MANUAL_USUARIO.md#14-reconectar-a-tv)
 
 ### Monitores e reconexão
