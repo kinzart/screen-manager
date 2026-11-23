@@ -199,7 +199,7 @@ function createSessions({ store, publicOrigin, secureCookies }) {
     const approvalPath = /^\/api\/v1\/spaces\/([^/]+)\/pairings\/([^/]+)\/approve$/.exec(pathname);
     if (method === 'POST' && approvalPath) {
       csrf(req, authorize(req));
-      const { name } = await readJson(req);
+      const { name, screenId: existingId } = await readJson(req);
       const [, spaceId, pairingId] = approvalPath;
       const screen = await store.change(db => {
         authorize(req, 'operator', db);
@@ -209,10 +209,23 @@ function createSessions({ store, publicOrigin, secureCookies }) {
         if (!pairing || pairing.expiresAt <= now) throw new StudioError(404, 'Pareamento não encontrado ou expirado.');
         if (pairing.screenId || pairing.claimed) throw new StudioError(409, 'Pareamento já aprovado.');
         prune(db, now);
+        if (existingId !== undefined) {
+          // Troca do aparelho de uma tela existente: mantém programação e rotas; revoga o aparelho anterior.
+          const target = typeof existingId === 'string' && Object.hasOwn(db.screens, existingId) ? db.screens[existingId] : null;
+          if (!target || target.spaceId !== spaceId) throw new StudioError(404, 'Tela não encontrada neste espaço.');
+          for (const session of Object.values(db.sessions)) {
+            if (session.role === 'screen' && session.screenId === target.id) delete db.sessions[session.id];
+          }
+          if (target.device) target.device = { ...target.device, revokedAt: now };
+          target.version += 1;
+          pairing.screenId = target.id;
+          return target;
+        }
         const count = Object.values(db.screens).filter(node => node.spaceId === spaceId).length;
         const created = {
           id: randomUUID(), spaceId, name: nameForScreen(name, pairing.name), version: 1,
           routeRevision: 1, input: null, position: { x: 415, y: Math.min(4000, 45 + count * 110) }, createdAt: now,
+          program: null, override: null, commands: [], device: null, controlRevision: 0,
         };
         db.screens[created.id] = created;
         pairing.screenId = created.id;

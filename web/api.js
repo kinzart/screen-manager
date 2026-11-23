@@ -3,12 +3,15 @@
 const { randomUUID } = require('node:crypto');
 const { StudioError } = require('./store');
 const { json, readJson } = require('./http-utils');
-const { playlistOutput, playlistPosition, resolveScreen, validateRoute } = require('./engine');
+const { playlistOutput, playlistPosition, validateRoute } = require('./engine');
 const { createSessions } = require('./sessions');
+const { resolveScreenOutput } = require('./screen-output');
+const { createScreenControl } = require('./screen-control');
+const { PROTOCOL, planMediaOrder } = require('./public/fbs-core');
 
 const API = '/api/v1';
 const ONLINE_MS = 15000;
-const ACK_STATUSES = new Set(['ready', 'playing', 'paused', 'blackout', 'logo', 'idle', 'error']);
+const ACK_STATUSES = new Set(['ready', 'playing', 'paused', 'blackout', 'logo', 'idle', 'error', 'waiting-media']);
 const TRANSPORT_ACTIONS = new Set(['play', 'pause', 'seek', 'next', 'previous', 'blackout', 'logo']);
 
 function own(collection, id) {
@@ -67,6 +70,36 @@ function requireItems(db, spaceId, input) {
     ids.add(id);
     return { id, mediaId: media.id, durationMs };
   });
+}
+
+const SAFE_TEXT = /[\x00-\x1f\x7f]/g;
+function text(value, max) {
+  return typeof value === 'string' ? value.replace(SAFE_TEXT, '').slice(0, max) : '';
+}
+function count(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+// Telemetria do receptor: só campos conhecidos, com limites de tamanho.
+function sanitizeTelemetry(body, now) {
+  if (!body || typeof body !== 'object') throw new StudioError(400, 'Telemetria inválida.');
+  const deviceId = typeof body.deviceId === 'string' && /^[A-Za-z0-9_-]{8,100}$/.test(body.deviceId) ? body.deviceId : null;
+  const cache = body.cache && typeof body.cache === 'object' ? body.cache : {};
+  const storage = body.storage && typeof body.storage === 'object' ? body.storage : {};
+  return {
+    at: now, deviceId,
+    protocol: Number.isInteger(body.protocol) && body.protocol >= 1 && body.protocol <= 99 ? body.protocol : 1,
+    app: { name: text(body.app?.name, 40) || 'tela-fbs', version: text(body.app?.version, 40) || 'desconhecida' },
+    platform: text(body.platform, 160),
+    cache: {
+      supported: cache.supported === true, ready: count(cache.ready), total: count(cache.total),
+      bytesReady: count(cache.bytesReady), bytesTotal: count(cache.bytesTotal), downloading: text(cache.downloading, 100) || null,
+      errors: Array.isArray(cache.errors) ? cache.errors.slice(0, 5).map(error => text(error, 200)) : [],
+    },
+    storage: { usage: count(storage.usage), quota: count(storage.quota) },
+    offlineSinceMs: count(body.offlineSinceMs) || null,
+    clockOffsetMs: Number.isFinite(body.clockOffsetMs) ? Math.max(-864e5, Math.min(864e5, Math.round(body.clockOffsetMs))) : null,
+    errors: Array.isArray(body.errors) ? body.errors.slice(0, 5).map(error => text(error, 200)) : [],
+  };
 }
 
 function itemStart(items, index) {
@@ -131,27 +164,51 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
   const sessions = sharedSessions || createSessions({ store, publicOrigin, secureCookies });
   const { authorize, csrf } = sessions;
   const presence = new Map();
+  const control = createScreenControl({ store });
 
-  function markSeen(screenId, now, ack) {
+  function markSeen(screenId, now, ack, extra = {}) {
     const previous = presence.get(screenId);
     const recentAck = previous && now - previous.lastSeenAt < ONLINE_MS ? previous.ack : null;
-    presence.set(screenId, { lastSeenAt: now, ack: ack ?? recentAck });
+    presence.set(screenId, {
+      lastSeenAt: now, ack: ack ?? recentAck,
+      deliveredRevision: Math.max(previous?.deliveredRevision ?? 0, extra.deliveredRevision ?? 0),
+      telemetry: extra.telemetry ?? previous?.telemetry ?? null,
+      protocol: extra.protocol ?? previous?.protocol ?? 1,
+    });
+  }
+
+  // accepted → delivered (o receptor buscou a revisão) → executed/failed (ACK atual posterior ao comando).
+  function commandStatus(record, activity, ack) {
+    if (!record) return null;
+    let status = 'accepted';
+    const delivered = (activity?.deliveredRevision ?? 0) >= record.revision;
+    if (delivered) status = 'delivered';
+    if (delivered && ack && ack.at >= record.at) status = ack.status === 'error' ? 'failed' : 'executed';
+    if (record.result === 'error') status = 'failed';
+    return { ...record, status };
   }
 
   function screenForOperator(db, screen, now) {
-    const route = resolveScreen(db, screen.id);
+    const resolved = resolveScreenOutput(db, screen.id, now);
     const activity = presence.get(screen.id);
     const online = Boolean(activity && now - activity.lastSeenAt < ONLINE_MS);
-    const playlistVersion = own(db.playlists, route.sourceId)?.version ?? null;
     const lastAck = activity?.ack;
-    const ack = online && lastAck?.routeVersion === route.routeVersion && lastAck.playlistVersion === playlistVersion
+    const ack = online && lastAck?.routeVersion === resolved.routeVersion && lastAck.playlistVersion === resolved.sourceVersion
       ? lastAck : null;
     let status = 'waiting';
     if (online) {
       if (ack && ack.status !== 'ready') status = ack.status;
-      else status = route.sourceId ? 'syncing' : 'idle';
+      else status = resolved.sourceId ? 'syncing' : 'idle';
     }
-    return { ...screen, ...route, online, lastSeenAt: activity?.lastSeenAt ?? null, status, ack };
+    const { commands = [], ...rest } = screen;
+    return {
+      ...rest, sourceId: resolved.sourceId, routeVersion: resolved.routeVersion, online,
+      lastSeenAt: activity?.lastSeenAt ?? null, status, ack, origin: resolved.origin, entryId: resolved.entryId,
+      output: resolved.output, programState: control.programState(db, screen, now), error: resolved.error,
+      telemetry: online ? activity?.telemetry ?? null : null, lastTelemetry: activity?.telemetry ?? null,
+      protocol: activity?.protocol ?? null,
+      lastCommand: commandStatus(commands[commands.length - 1], activity, ack),
+    };
   }
 
   async function operatorChange(req, mutate, withBody = true) {
@@ -177,11 +234,18 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
       const common = { role, csrf: session.csrf, revision: db.revision, serverNowMs: now };
       if (role === 'screen') {
         const { id, name } = db.screens[session.screenId];
-        markSeen(id, now);
-        const route = resolveScreen(db, id);
-        const source = own(db.playlists, route.sourceId) ?? null;
-        const output = source ? playlistOutput(db, source, now) : null;
-        json(res, 200, { ...common, screen: { id, name, routeVersion: route.routeVersion, sourceId: route.sourceId }, source, output });
+        const resolved = resolveScreenOutput(db, id, now);
+        markSeen(id, now, undefined, { deliveredRevision: db.revision });
+        // Em programa/override, a versão da origem combina sessão e controle da tela (invalida ACKs antigos).
+        const source = resolved.source ? { ...resolved.source, version: resolved.sourceVersion } : null;
+        const body = {
+          ...common, protocol: PROTOCOL,
+          screen: { id, name, routeVersion: resolved.routeVersion, sourceId: resolved.sourceId, origin: resolved.origin,
+            entryId: resolved.entryId, required: resolved.required },
+          source, output: resolved.output, planHash: resolved.planHash,
+        };
+        if (searchParams.get('plan') !== resolved.planHash) body.plan = resolved.plan;
+        json(res, 200, body);
       } else {
         const spaces = Object.values(db.spaces);
         const requested = searchParams.get('spaceId');
@@ -233,6 +297,7 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
         if (body.name !== undefined) current.name = requireName(body.name);
         if (body.items !== undefined || body.loop !== undefined) {
           const now = store.now();
+          if (body.items !== undefined) control.freezeProgramsUsing(db, current.id, now);
           const positionMs = playlistPosition(current, now);
           if (body.items !== undefined) current.items = requireItems(db, current.spaceId, body.items);
           if (body.loop !== undefined) {
@@ -266,6 +331,7 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
       await operatorChange(req, db => {
         const { id } = requireRecord(db.playlists, playlistPath[1], 'Sessão');
         disconnectInputs(db, 'playlist', id);
+        control.detachPlaylist(db, id, store.now());
         delete db.playlists[id];
       }, false);
       json(res, 200, { ok: true });
@@ -283,15 +349,15 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
         throw new StudioError(400, 'Confirmação de reprodução inválida.');
       }
       const db = store.db;
-      const route = resolveScreen(db, session.screenId);
-      const playlist = own(db.playlists, route.sourceId);
-      const currentVersion = playlist?.version ?? null;
       const now = store.now();
-      if (routeVersion !== route.routeVersion || playlistVersion !== currentVersion
+      const resolved = resolveScreenOutput(db, session.screenId, now);
+      const playlist = resolved.source;
+      const currentVersion = resolved.sourceVersion;
+      if (routeVersion !== resolved.routeVersion || playlistVersion !== currentVersion
           || (mediaId != null && !playlist?.items.some(item => item.mediaId === mediaId))) {
         markSeen(session.screenId, now);
         const error = new StudioError(409, 'A tela recebeu uma versão antiga da origem.', 'STALE_ACK');
-        error.details = { routeVersion: route.routeVersion, playlistVersion: currentVersion };
+        error.details = { routeVersion: resolved.routeVersion, playlistVersion: currentVersion };
         throw error;
       }
       const ack = { routeVersion, playlistVersion, status, at: now };
@@ -300,6 +366,80 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
       markSeen(session.screenId, now, ack);
       json(res, 200, { ok: true });
       return true;
+    }
+
+    if (method === 'POST' && pathname === `${API}/screens/self/heartbeat`) {
+      const session = authorize(req, 'screen');
+      csrf(req, session);
+      const now = store.now();
+      const telemetry = sanitizeTelemetry(await readJson(req), now);
+      markSeen(session.screenId, now, undefined, { telemetry, protocol: telemetry.protocol });
+      const current = store.db.screens[session.screenId]?.device;
+      // Identidade do aparelho só é gravada quando muda (ou de hora em hora), não a cada heartbeat.
+      if (telemetry.deviceId && (!current || current.deviceId !== telemetry.deviceId || current.version !== telemetry.app.version
+          || current.revokedAt || now - (current.lastSeenAt ?? 0) > 60 * 60 * 1000)) {
+        await store.change(db => {
+          const screen = own(db.screens, session.screenId);
+          if (!screen) return;
+          const firstSeenAt = screen.device?.deviceId === telemetry.deviceId ? screen.device.firstSeenAt : now;
+          screen.device = { deviceId: telemetry.deviceId, app: telemetry.app.name, version: telemetry.app.version,
+            platform: telemetry.platform, firstSeenAt, lastSeenAt: now };
+        });
+      }
+      json(res, 200, { ok: true, protocol: PROTOCOL, serverNowMs: store.now() });
+      return true;
+    }
+
+    if (method === 'GET' && pathname === `${API}/screens/self/manifest`) {
+      const session = authorize(req, 'screen');
+      const db = store.db;
+      const now = store.now();
+      const resolved = resolveScreenOutput(db, session.screenId, now);
+      const files = planMediaOrder(resolved.plan, now).map(id => own(db.media, id)).filter(Boolean).map(media => ({
+        id: media.id, name: media.name, type: media.type, mime: media.mime, size: media.size,
+        sha256: media.sha256 ?? null, chunkSize: media.chunkSize ?? null, chunks: media.chunks ?? null,
+        url: `/api/v1/media/${media.id}?role=screen`,
+      }));
+      json(res, 200, { planHash: resolved.planHash, files });
+      return true;
+    }
+
+    const controlPath = /^\/api\/v1\/screens\/([^/]+)\/(program|commands|revoke)$/.exec(pathname);
+    if (controlPath && controlPath[1] !== 'self') {
+      const [, screenId, kind] = controlPath;
+      if (method === 'PUT' && kind === 'program') {
+        const screen = await operatorChange(req, (db, body) => {
+          const current = requireRecord(db.screens, screenId, 'Tela');
+          requireVersion(current, body.version);
+          control.setProgram(db, current, body.program === undefined ? null : body.program, store.now());
+          current.version += 1;
+          current.controlRevision = (current.controlRevision ?? 0) + 1;
+          return current;
+        });
+        json(res, 200, screen);
+        return true;
+      }
+      if (method === 'POST' && kind === 'commands') {
+        const result = await operatorChange(req, (db, body) => {
+          const current = requireRecord(db.screens, screenId, 'Tela');
+          return control.command(db, current, body, store.now());
+        });
+        json(res, result.duplicate ? 200 : 201, { ...result.record, duplicate: result.duplicate });
+        return true;
+      }
+      if (method === 'POST' && kind === 'revoke') {
+        await operatorChange(req, db => {
+          const screen = requireRecord(db.screens, screenId, 'Tela');
+          for (const session of Object.values(db.sessions)) {
+            if (session.role === 'screen' && session.screenId === screen.id) delete db.sessions[session.id];
+          }
+          if (screen.device) screen.device = { ...screen.device, revokedAt: store.now() };
+          screen.version += 1;
+        }, false);
+        presence.delete(screenId);
+        json(res, 200, { ok: true });
+        return true;
+      }
     }
 
     const screenPath = /^\/api\/v1\/screens\/([^/]+)(\/route)?$/.exec(pathname);

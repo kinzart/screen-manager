@@ -14,16 +14,63 @@ class StudioError extends Error {
 }
 
 const COLLECTIONS = ['spaces', 'playlists', 'screens', 'media', 'uploads', 'sessions', 'pairings'];
+const SCHEMA_VERSION = 2;
 function emptyDatabase() {
   return Object.fromEntries([
-    ['schemaVersion', 1], ['revision', 0],
+    ['schemaVersion', SCHEMA_VERSION], ['revision', 0],
     ...COLLECTIONS.map(name => [name, {}]),
   ]);
 }
 function validateDatabase(db) {
-  if (!db || db.schemaVersion !== 1 || !Number.isSafeInteger(db.revision) || db.revision < 0 ||
+  if (!db || db.schemaVersion !== SCHEMA_VERSION || !Number.isSafeInteger(db.revision) || db.revision < 0 ||
       COLLECTIONS.some(name => !db[name] || typeof db[name] !== 'object' || Array.isArray(db[name]))) {
     throw new Error('O arquivo de dados do FBS Studio tem formato inválido. Restaure um backup antes de iniciar.');
+  }
+}
+
+// Migrações puras por versão. Cada uma recebe o documento da versão N e devolve N+1.
+const MIGRATIONS = {
+  1(db) {
+    for (const screen of Object.values(db.screens || {})) {
+      screen.program ??= null;
+      screen.override ??= null;
+      screen.commands ??= [];
+      screen.device ??= null;
+      screen.controlRevision ??= 0;
+    }
+    for (const media of Object.values(db.media || {})) {
+      media.sha256 ??= null;
+      media.chunkSize ??= null;
+      media.chunks ??= null;
+    }
+    db.schemaVersion = 2;
+    return db;
+  },
+};
+function migrateDatabase(db) {
+  if (!db || !Number.isSafeInteger(db.schemaVersion) || db.schemaVersion < 1 || db.schemaVersion > SCHEMA_VERSION) {
+    throw new Error(`Versão de dados do FBS Studio não suportada (${db?.schemaVersion}). Atualize o servidor ou restaure um backup.`);
+  }
+  let current = db;
+  while (current.schemaVersion < SCHEMA_VERSION) current = MIGRATIONS[current.schemaVersion](current);
+  return current;
+}
+
+async function writeAtomic(dataDir, name, text) {
+  const temporary = path.join(dataDir, `.${name}-${randomUUID()}.tmp`);
+  let handle;
+  let committed = false;
+  try {
+    handle = await fs.open(temporary, 'wx', 0o600);
+    await handle.writeFile(text);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await fs.rename(temporary, path.join(dataDir, name));
+    committed = true;
+  } finally {
+    await handle?.close().catch(() => {});
+    if (!committed) await fs.unlink(temporary).catch(() => {});
   }
 }
 
@@ -39,13 +86,27 @@ class StudioStore {
     store._queue = Promise.resolve();
     store._closed = false;
     await fs.mkdir(store.dataDir, { recursive: true, mode: 0o700 });
+    let raw;
     try {
-      store.db = JSON.parse(await fs.readFile(path.join(store.dataDir, 'state.json'), 'utf8'));
-      validateDatabase(store.db);
+      raw = await fs.readFile(path.join(store.dataDir, 'state.json'), 'utf8');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      store.db = emptyDatabase();
     }
+    if (raw === undefined) {
+      store.db = emptyDatabase();
+      return store;
+    }
+    const parsed = JSON.parse(raw);
+    const fromVersion = parsed?.schemaVersion;
+    const migrated = migrateDatabase(parsed);
+    validateDatabase(migrated);
+    if (fromVersion !== SCHEMA_VERSION) {
+      // Backup byte a byte da versão anterior ANTES de gravar o formato novo.
+      await writeAtomic(store.dataDir, `state.v${fromVersion}-${now()}.json`, raw);
+      await writeAtomic(store.dataDir, 'state.json', JSON.stringify(migrated));
+      store.migratedFrom = fromVersion;
+    }
+    store.db = migrated;
     return store;
   }
 
@@ -93,4 +154,4 @@ class StudioStore {
   }
 }
 
-module.exports = { StudioStore, StudioError };
+module.exports = { StudioStore, StudioError, migrateDatabase, SCHEMA_VERSION };

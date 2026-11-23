@@ -7,8 +7,8 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node server.js",
-    "build": "node --check server.js",
-    "test": "node --test ../tests/studio.test.cjs"
+    "build": "node --check server.js && node --check orchestrator.js && node --check screen-output.js && node --check screen-control.js && node --check public/fbs-core.js",
+    "test": "node --test ../tests/studio.test.cjs ../tests/orchestrator.test.cjs ../tests/central.test.cjs"
   },
   "dependencies": {
     "qrcode-generator": "2.0.4"
