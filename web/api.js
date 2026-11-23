@@ -241,7 +241,7 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
         const body = {
           ...common, protocol: PROTOCOL,
           screen: { id, name, routeVersion: resolved.routeVersion, sourceId: resolved.sourceId, origin: resolved.origin,
-            entryId: resolved.entryId, required: resolved.required },
+            entryId: resolved.entryId, required: resolved.required, segmentKey: resolved.segmentKey },
           source, output: resolved.output, planHash: resolved.planHash,
         };
         if (searchParams.get('plan') !== resolved.planHash) body.plan = resolved.plan;

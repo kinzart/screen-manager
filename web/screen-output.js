@@ -10,7 +10,7 @@ const { playlistOutput, playlistPosition, resolveScreen } = require('./engine');
 
 const PLAN_HORIZON_MS = 6 * 60 * 60 * 1000;
 const PLAN_QUANTUM_MS = 10 * 60 * 1000;
-const MAX_SEGMENTS = 64;
+const MAX_SEGMENTS = 128;
 
 const own = (collection, id) => (typeof id === 'string' && Object.hasOwn(collection, id) ? collection[id] : null);
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -90,7 +90,13 @@ function screenSegments(db, screen, from, to, now, visited = new Set()) {
     const spanFrom = Math.max(span.fromMs, cursor);
     const spanTo = to === null ? span.toMs : span.toMs === null ? to : Math.min(span.toMs, to);
     if (spanTo !== null && spanTo <= spanFrom) continue;
-    if (span.entry) {
+    if (span.cycle) {
+      segments.push({
+        kind: 'cycle', origin: 'program', keyPrefix: 'p:', controller: screen.id, fromMs: span.fromMs, toMs: spanTo, cycleMs: span.cycleMs,
+        steps: span.cycle.map(({ entry, lengthMs }) => ({ playlistId: entry.playlistId, entryId: entry.id, lengthMs,
+          passes: passesOf(entry.repeat), required: entry.required })),
+      });
+    } else if (span.entry) {
       const paused = span.startMs === null;
       segments.push({
         kind: 'media', origin: 'program', playlistId: span.entry.playlistId, entryId: span.entry.id, key: `p:${span.key}`,
@@ -108,7 +114,35 @@ function screenSegments(db, screen, from, to, now, visited = new Set()) {
 }
 
 function segmentAt(segments, t) {
-  return segments.find(segment => t >= segment.fromMs && (segment.toMs === null || t < segment.toMs)) || null;
+  const found = segments.find(segment => t >= segment.fromMs && (segment.toMs === null || t < segment.toMs)) || null;
+  if (!found || found.kind !== 'cycle') return found;
+  return { ...core.expandSegment(found, t), controller: found.controller };
+}
+
+// Fim da cobertura contínua do plano (pode ser menor que o horizonte se o limite de segmentos for atingido).
+function coverageEnd(segments, from, horizon) {
+  let end = from;
+  for (const segment of segments) {
+    if (segment.fromMs > end) break;
+    if (segment.toMs === null) return horizon;
+    end = Math.max(end, segment.toMs);
+  }
+  return Math.min(end, horizon);
+}
+
+// Sessões que a programação pode alcançar dentro do horizonte (pré-carga além dos segmentos expandidos).
+function reachablePlaylists(db, screen, from, to, visited = new Set()) {
+  if (!screen || visited.has(screen.id)) return [];
+  visited.add(screen.id);
+  const ids = [];
+  if (screen.override?.playlistId) ids.push(screen.override.playlistId);
+  for (const entry of screen.program?.enabled ? screen.program.entries : []) {
+    if ((entry.validFromMs == null || entry.validFromMs < to) && (entry.validUntilMs == null || entry.validUntilMs > from)
+        && (entry.start.type !== 'at' || (entry.start.atMs >= from && entry.start.atMs < to))) ids.push(entry.playlistId);
+  }
+  if (screen.input?.kind === 'playlist') ids.push(screen.input.id);
+  if (screen.input?.kind === 'screen') ids.push(...reachablePlaylists(db, own(db.screens, screen.input.id), from, to, visited));
+  return ids;
 }
 
 function numericVersion(value) {
@@ -141,7 +175,10 @@ function resolveScreenOutput(db, screenId, now) {
     routeVersion = hash([legacy.routeVersion, current.origin, current.key, current.playlistId || null]).slice(0, 24);
     sourceVersion = playlist ? numericVersion([playlist.version, controller?.controlRevision ?? 0, current.key]) : null;
   }
-  const playlistIds = [...new Set(segments.map(segment => segment.playlistId).filter(Boolean))];
+  const playlistIds = [...new Set([
+    ...segments.flatMap(segment => (segment.kind === 'cycle' ? segment.steps.map(step => step.playlistId) : [segment.playlistId])),
+    ...reachablePlaylists(db, screen, now, horizonEndMs),
+  ].filter(id => id && own(db.playlists, id)?.spaceId === screen.spaceId))];
   const playlists = {};
   const media = {};
   for (const id of playlistIds) {
@@ -156,12 +193,13 @@ function resolveScreenOutput(db, screenId, now) {
     }
   }
   const plan = {
-    horizonEndMs, fallback: screen.program?.fallback ?? 'stream',
+    horizonEndMs: coverageEnd(segments, collectFrom, horizonEndMs), fallback: screen.program?.fallback ?? 'stream',
     segments: segments.map(({ controller, ...segment }) => segment), playlists, media,
   };
   return {
     screen, source: playlist, output, routeVersion, sourceVersion, sourceId: playlist?.id ?? null,
     origin: current?.origin ?? 'route', entryId: current?.entryId ?? null, required: Boolean(current?.required),
+    segmentKey: current?.key ?? null,
     error: current?.error ?? null, plan, planHash: hash(plan).slice(0, 24), mediaIds: new Set(Object.keys(media)),
   };
 }

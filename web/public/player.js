@@ -24,6 +24,24 @@ let ackRetryAt = 0;
 let ackEpoch = 0;
 let controlsTimer;
 
+// Protocolo 2: plano local (offline), relógio do servidor, cache e telemetria.
+const PLAYER_VERSION = '1.1.0';
+const core = window.FBSCore;
+const cache = window.FBSCache || {
+  supported: false, update: function () {}, protect: function () {}, isReady: function () { return false; },
+  stats: function () { return { supported: false }; }, storage: function () { return Promise.resolve({}); },
+  clear: function () { return Promise.resolve(); }
+};
+let plan = null;
+let planHash = '';
+let clockOffset = 0;
+let offlineSince = 0;
+let lastOnline = null;
+let waitingMedia = null;
+let heartbeatAt = -Infinity;
+let offlineRenderAt = 0;
+let memoryDeviceId = '';
+
 function write(node, value) {
   if (node.textContent !== value) node.textContent = value;
 }
@@ -134,6 +152,12 @@ function enterPairing(restore) {
   phase = 'pair';
   csrf = '';
   current = null;
+  plan = null;
+  planHash = '';
+  lastOnline = null;
+  offlineSince = 0;
+  waitingMedia = null;
+  cache.clear();
   connected = false;
   lastAcknowledged = '';
   ackEpoch++;
@@ -365,6 +389,7 @@ function synchronize() {
 }
 
 function actualPlayback() {
+  if (waitingMedia) return { status: 'waiting-media', mediaId: waitingMedia.mediaId };
   const output = current.output;
   if (!output || (output.mode === 'media' && !output.item)) return { status: 'idle' };
   if (output.mode !== 'media') return { status: output.mode };
@@ -417,25 +442,42 @@ function acknowledge() {
   });
 }
 
-function applySnapshot(snapshot, started) {
+function applySnapshot(snapshot, started, offline) {
   const now = performance.now();
   const previous = current;
   current = Object.assign(snapshot, { sampleAt: (started + now) / 2 });
   const routeChanged = !previous || previous.screen.routeVersion !== snapshot.screen.routeVersion;
-  const recovered = !connected || now - lastPollAt >= 15000;
-  if (recovered || routeChanged) {
-    ackEpoch++;
-    lastAcknowledged = '';
-    ackRetryAt = 0;
+  let recovered = false;
+  if (!offline) {
+    recovered = !connected || now - lastPollAt >= 15000;
+    if (recovered || routeChanged) {
+      ackEpoch++;
+      lastAcknowledged = '';
+      ackRetryAt = 0;
+    }
+    if (snapshot.plan) plan = snapshot.plan;
+    if (snapshot.planHash) planHash = snapshot.planHash;
+    if (isFinite(snapshot.serverNowMs)) clockOffset = snapshot.serverNowMs - (Date.now() - (now - current.sampleAt));
+    lastOnline = snapshot;
+    offlineSince = 0;
+    cache.update(planHash);
+    connected = true;
+    snapshotNumber++;
+    lastPollAt = now;
+    write(byId('tv-network'), '');
   }
-  connected = true;
-  snapshotNumber++;
-  lastPollAt = now;
-  write(byId('tv-network'), '');
   document.title = snapshot.screen.name + ' · Tela FBS';
 
   const output = snapshot.output;
-  const mode = output && (output.mode !== 'media' || output.item) ? output.mode : 'idle';
+  let mode = output && (output.mode !== 'media' || output.item) ? output.mode : 'idle';
+  // Sessão obrigatória sem a mídia em cache: aplica a alternativa configurada em vez de começar.
+  waitingMedia = null;
+  if (mode === 'media' && snapshot.screen.required && cache.supported && plan && plan.fallback !== 'stream'
+      && !cache.isReady(output.item.mediaId)) {
+    waitingMedia = { mediaId: output.item.mediaId };
+    mode = plan.fallback;
+  }
+  cache.protect(mode === 'media' ? output.item.mediaId : null);
   if (routeChanged || mode !== 'media') stopMedia();
   setMode(mode);
   if (mode === 'idle') {
@@ -473,14 +515,17 @@ async function tick() {
     if (phase === 'screen') {
       const pollStarted = performance.now();
       const epoch = ackEpoch;
-      const snapshot = await api('/state?role=screen', 'GET');
+      const snapshot = await api('/state?role=screen' + (planHash && plan ? '&plan=' + encodeURIComponent(planHash) : ''), 'GET');
       if (phase === 'screen' && epoch === ackEpoch) applySnapshot(snapshot, pollStarted);
     } else if (phase === 'pair') await pollPairing();
   } catch (error) {
     if (phase === 'screen' && error.status === 401) enterPairing(false);
     else if (phase === 'pair') pairFeedback('Sem conexão com o estúdio. Aguardando retorno.', true);
     else {
-      if (lastPollAt <= started) connected = false;
+      if (lastPollAt <= started) {
+        connected = false;
+        if (!offlineSince) offlineSince = Date.now();
+      }
       if (!current) write(byId('tv-caption'), 'Sem conexão. Tentando reconectar…');
       write(byId('tv-network'), 'Estúdio desconectado. Tentando reconectar.');
     }
@@ -526,8 +571,59 @@ byId('pair-form').addEventListener('submit', (event) => {
   event.preventDefault();
   newPairing();
 });
+// Sem rede: executa o último plano recebido no relógio estimado do servidor (sem ACK).
+function offlineStep() {
+  if (phase !== 'screen' || connected || !plan || !current || !core) return;
+  const now = performance.now();
+  if (now - offlineRenderAt < 1000) return;
+  offlineRenderAt = now;
+  const serverNow = Date.now() + clockOffset;
+  const evaluated = core.planOutput(plan, serverNow);
+  const segment = evaluated.segment;
+  const key = segment ? segment.key : 'none';
+  const routeVersion = lastOnline && lastOnline.screen.segmentKey === key ? lastOnline.screen.routeVersion : 'offline:' + key;
+  applySnapshot({
+    serverNowMs: serverNow,
+    screen: Object.assign({}, current.screen, { routeVersion: routeVersion, required: Boolean(segment && segment.required), segmentKey: key }),
+    source: segment && segment.playlistId ? plan.playlists[segment.playlistId] || null : null,
+    output: evaluated.output
+  }, now, true);
+  write(byId('tv-network'), 'Sem conexão. Reproduzindo a programação local.');
+}
+
+function deviceId() {
+  try {
+    let id = localStorage.getItem('fbs-device-id');
+    if (!id || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      id = Array.prototype.map.call(bytes, (value) => (value < 16 ? '0' : '') + value.toString(16)).join('');
+      localStorage.setItem('fbs-device-id', id);
+    }
+    return id;
+  } catch (error) {
+    if (!memoryDeviceId) memoryDeviceId = 'mem' + Math.random().toString(16).slice(2, 14);
+    return memoryDeviceId;
+  }
+}
+
+function heartbeat() {
+  if (phase !== 'screen' || !connected || performance.now() - heartbeatAt < 10000) return;
+  heartbeatAt = performance.now();
+  cache.storage().catch(() => ({})).then((storage) => api('/screens/self/heartbeat', 'POST', {
+    protocol: core ? core.PROTOCOL : 2,
+    deviceId: deviceId(),
+    app: { name: 'tela-fbs-web', version: PLAYER_VERSION },
+    platform: navigator.userAgent.slice(0, 160),
+    cache: cache.stats(),
+    storage: { usage: Math.round(storage.usage || 0), quota: Math.round(storage.quota || 0) },
+    clockOffsetMs: Math.round(clockOffset),
+    errors: playingMedia && playingMedia.error ? [playingMedia.error] : []
+  })).catch(() => { heartbeatAt = performance.now() - 7000; });
+}
+
 window.addEventListener('online', tick);
-window.addEventListener('offline', () => { connected = false; });
-setInterval(tick, 1000);
-setInterval(() => { synchronize(); acknowledge(); }, 200);
+window.addEventListener('offline', () => { connected = false; if (!offlineSince) offlineSince = Date.now(); });
+setInterval(() => { tick(); heartbeat(); }, 1000);
+setInterval(() => { offlineStep(); synchronize(); acknowledge(); }, 200);
 tick();

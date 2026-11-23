@@ -245,7 +245,11 @@ function prepare(program, ctx) {
     return total > 0 ? total : null;
   }
 
-  return { entries, index, durationOf, length, validAt, priority, nextTrigger, nextSequential, entryEnd, itemEndAfter, nextBoundary, cycleLength };
+  function cycleSteps(t) {
+    return entries.filter(entry => entry.start.type === 'sequence' && validAt(entry, t)).map(entry => ({ entry, lengthMs: length(entry) }));
+  }
+
+  return { entries, index, durationOf, length, validAt, priority, nextTrigger, nextSequential, entryEnd, itemEndAfter, nextBoundary, cycleLength, cycleSteps };
 }
 
 function better(current, candidate) {
@@ -330,9 +334,21 @@ function simulate(program, ctx, untilMs, { collectFromMs = untilMs, maxSpans = 6
       const cycle = next && model.cycleLength(t);
       if (cycle) {
         const upcoming = model.nextTrigger(t);
-        const limit = Math.min(upcoming ? upcoming.at : Infinity, untilMs, collectFromMs, model.nextBoundary(t));
-        const skip = Math.floor((limit - t) / cycle) - 1;
-        if (skip > 0 && Number.isFinite(limit)) { t += skip * cycle; spanFrom = t; }
+        const hardLimit = Math.min(upcoming ? upcoming.at : Infinity, untilMs, model.nextBoundary(t));
+        if (t < collectFromMs) {
+          // Antes da janela coletada: avanço aritmético (fora do plano).
+          const limit = Math.min(hardLimit, collectFromMs);
+          const skip = Math.floor((limit - t) / cycle) - 1;
+          if (skip > 0 && Number.isFinite(limit)) { t += skip * cycle; spanFrom = t; }
+        } else if (Number.isFinite(hardLimit) && spans.length < maxSpans) {
+          // Dentro da janela: um único span "cycle" representa k ciclos idênticos (plano compacto).
+          const repeats = Math.floor((hardLimit - t) / cycle);
+          if (repeats >= 2) {
+            spans.push({ fromMs: t, toMs: t + repeats * cycle, entry: null, startMs: t, cycleMs: cycle, cycle: model.cycleSteps(t) });
+            t += repeats * cycle;
+            spanFrom = t;
+          }
+        }
       }
     }
     current = next;

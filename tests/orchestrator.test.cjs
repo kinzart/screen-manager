@@ -232,10 +232,38 @@ test('onEnd stop, programa parado e vizinhos para comandos de sessão', () => {
   assert.equal(neighborEntry(p, ctx, 'two', 1, T0), null);
 });
 
+test('ciclos compactos: expansão equivale à simulação passo a passo (entrada, início e chave)', () => {
+  const p = program([
+    { id: 'b', playlistId: 'B' }, { id: 'a', playlistId: 'A', repeat: { mode: 'count', count: 2 } },
+    { id: 'big', playlistId: 'C', start: { type: 'at', atMs: T0 + HOUR } },
+  ], { endBehavior: 'repeat' });
+  const result = simulate(p, ctx, T0 + 6 * HOUR, { collectFromMs: T0, maxSpans: 128 });
+  const cycles = result.spans.filter(span => span.cycle);
+  assert.ok(cycles.length >= 2, 'ciclos antes e depois do gatilho');
+  assert.ok(result.spans.some(span => span.entry?.id === 'big'), 'a sessão das +1h está no plano');
+  assert.ok(result.spans.length < 20, `plano compacto (${result.spans.length} spans)`);
+  let seed = 7;
+  const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  for (let i = 0; i < 300; i++) {
+    const t = T0 + Math.floor(random() * 6 * HOUR);
+    const span = result.spans.find(entry => t >= entry.fromMs && (entry.toMs === null || t < entry.toMs));
+    const direct = at(p, t);
+    if (!span?.cycle) continue;
+    const expanded = core.expandSegment({
+      kind: 'cycle', fromMs: span.fromMs, toMs: span.toMs, cycleMs: span.cycleMs, keyPrefix: '',
+      steps: span.cycle.map(step => ({ playlistId: step.entry.playlistId, entryId: step.entry.id, lengthMs: step.lengthMs })),
+    }, t);
+    assert.equal(expanded.entryId, direct.entry.id, `entrada em +${t - T0}`);
+    assert.equal(expanded.fromMs, direct.startMs, `início em +${t - T0}`);
+    assert.equal(expanded.key, direct.key, `chave em +${t - T0}`);
+  }
+});
+
 test('spans: plano futuro lista segmentos e respeita o limite', () => {
-  const p = program([{ id: 'b', playlistId: 'B' }, { id: 'a', playlistId: 'A' }], { endBehavior: 'repeat' });
-  const result = simulate(p, ctx, T0 + 6 * HOUR, { collectFromMs: T0 + 10 * S, maxSpans: 64 });
-  assert.equal(result.spans.length, 64);
+  const p = program([{ id: 'b', playlistId: 'B' }, { id: 'a', playlistId: 'A', endAfterMs: 20 * S },
+    { id: 'tick', playlistId: 'B', start: { type: 'daily', time: '09:01' } }], { endBehavior: 'stop' });
+  const result = simulate(p, ctx, T0 + 6 * HOUR, { collectFromMs: T0 + 10 * S, maxSpans: 3 });
+  assert.equal(result.spans.length, 3);
   assert.equal(result.spans[0].entry.id, 'a');
   assert.ok(result.spans[0].toMs > T0 + 10 * S);
   for (let i = 1; i < result.spans.length; i++) assert.equal(result.spans[i].fromMs, result.spans[i - 1].toMs);

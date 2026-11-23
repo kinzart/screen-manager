@@ -284,8 +284,23 @@ test('manifesto lista mídias do plano na ordem de uso com hashes por bloco', as
   await c.owner.request(`/api/v1/screens/${node.id}/program`, { version: node.version, program: {
     entries: [{ playlistId: A.id }, { playlistId: B.id }],
   } }, { method: 'PUT' });
-  const manifest = (await tv.request('/api/v1/screens/self/manifest')).body;
+  let manifest = (await tv.request('/api/v1/screens/self/manifest')).body;
   assert.deepEqual(manifest.files.map(file => file.id), [m1.id, m2.id]);
+  // Regressão: repeat com sessões curtas não pode esconder a sessão agendada para +1 h (plano compacto).
+  const m3 = await c.upload('later.png', pngVariant(3));
+  const later = await c.playlist('Later', [{ mediaId: m3.id, durationMs: 5 * S }]);
+  const screen = c.screenRecord(node.id);
+  await c.owner.request(`/api/v1/screens/${node.id}/program`, { version: screen.version, program: {
+    endBehavior: 'repeat',
+    entries: [{ playlistId: A.id }, { playlistId: B.id }, { playlistId: later.id, start: { type: 'at', atMs: c.clock.now + 3600 * S } }],
+  } }, { method: 'PUT' });
+  manifest = (await tv.request('/api/v1/screens/self/manifest')).body;
+  assert.deepEqual(manifest.files.map(file => file.id), [m1.id, m2.id, m3.id]);
+  const state = (await tv.request('/api/v1/state?role=screen')).body;
+  assert.ok(state.plan.segments.some(segment => segment.kind === 'cycle'));
+  assert.ok(state.plan.segments.length < 20);
+  assert.ok(state.plan.horizonEndMs >= c.clock.now + 5 * 3600 * S, 'cobertura de horas, não minutos');
+  assert.deepEqual((await tv.request(`/api/v1/media/${m3.id}?role=screen`)).bytes, pngVariant(3));
   assert.equal(manifest.files[1].sha256, sha(pngVariant(2)));
   assert.equal(manifest.files[1].chunkSize, 8 * 1024 * 1024);
   assert.ok(manifest.planHash);

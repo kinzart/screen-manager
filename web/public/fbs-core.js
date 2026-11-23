@@ -79,11 +79,36 @@
     };
   }
 
+  /* Um segmento "cycle" representa k repetições idênticas de uma sequência de sessões.
+   * Expande para o segmento de mídia concreto em t. A chave é o instante real de início da sessão,
+   * idêntica à da simulação passo a passo (sem remontar mídia ao trocar de representação). */
+  function expandSegment(segment, t) {
+    if (!segment || segment.kind !== 'cycle') return segment;
+    var offset = Math.max(0, t - segment.fromMs);
+    var round = Math.floor(offset / segment.cycleMs);
+    var within = offset - round * segment.cycleMs;
+    var accumulated = 0;
+    for (var i = 0; i < segment.steps.length; i++) {
+      var step = segment.steps[i];
+      if (within < accumulated + step.lengthMs || i === segment.steps.length - 1) {
+        var start = segment.fromMs + round * segment.cycleMs + accumulated;
+        var end = start + step.lengthMs;
+        return {
+          kind: 'media', origin: segment.origin, playlistId: step.playlistId, entryId: step.entryId, required: step.required,
+          key: (segment.keyPrefix || '') + 's' + start, fromMs: start,
+          toMs: segment.toMs == null ? end : Math.min(end, segment.toMs), offsetAtFromMs: 0, playing: true, passes: step.passes
+        };
+      }
+      accumulated += step.lengthMs;
+    }
+    return null;
+  }
+
   function findSegment(plan, t) {
     var segments = (plan && plan.segments) || [];
     for (var i = 0; i < segments.length; i++) {
       var to = segments[i].toMs == null ? Infinity : segments[i].toMs;
-      if (t >= segments[i].fromMs && t < to) return segments[i];
+      if (t >= segments[i].fromMs && t < to) return expandSegment(segments[i], t);
     }
     return null;
   }
@@ -96,26 +121,41 @@
     return { segment: segment, output: segmentOutput(segment, playlist, plan.media, t) };
   }
 
-  /* Mídias do plano na ordem do primeiro uso, para o pré-carregamento. */
+  /* Mídias do plano na ordem do primeiro uso, para o pré-carregamento.
+   * Depois dos segmentos, inclui as demais sessões alcançáveis no horizonte (plan.playlists). */
   function planMediaOrder(plan, fromMs) {
     var seen = {};
     var order = [];
-    var segments = (plan && plan.segments) || [];
-    for (var i = 0; i < segments.length; i++) {
-      var segment = segments[i];
-      if (segment.kind !== 'media' || (segment.toMs != null && segment.toMs <= fromMs)) continue;
-      var playlist = plan.playlists && plan.playlists[segment.playlistId];
-      var items = (playlist && playlist.items) || [];
-      var first = sequenceAt(items, segmentOffset(segment, Math.max(fromMs, segment.fromMs)), segment.passes).index;
+    var playlists = (plan && plan.playlists) || {};
+    function addItems(items, first) {
       for (var k = 0; k < items.length; k++) {
         var item = items[(Math.max(0, first) + k) % items.length];
         if (!seen[item.mediaId]) { seen[item.mediaId] = true; order.push(item.mediaId); }
       }
     }
+    var segments = (plan && plan.segments) || [];
+    for (var i = 0; i < segments.length; i++) {
+      var segment = segments[i];
+      if (segment.toMs != null && segment.toMs <= fromMs) continue;
+      if (segment.kind === 'cycle') {
+        var expanded = expandSegment(segment, Math.max(fromMs, segment.fromMs));
+        for (var s = 0; s < segment.steps.length; s++) {
+          var step = segment.steps[s];
+          var stepPlaylist = playlists[step.playlistId];
+          addItems((stepPlaylist && stepPlaylist.items) || [], 0);
+        }
+        if (!expanded) continue;
+      }
+      if (segment.kind !== 'media') continue;
+      var playlist = playlists[segment.playlistId];
+      var items = (playlist && playlist.items) || [];
+      addItems(items, sequenceAt(items, segmentOffset(segment, Math.max(fromMs, segment.fromMs)), segment.passes).index);
+    }
+    Object.keys(playlists).sort().forEach(function (id) { addItems(playlists[id].items || [], 0); });
     return order;
   }
 
   return { PROTOCOL: PROTOCOL, itemDuration: itemDuration, totalDuration: totalDuration, sequenceAt: sequenceAt,
-    segmentOffset: segmentOffset, segmentOutput: segmentOutput, findSegment: findSegment, planOutput: planOutput,
+    segmentOffset: segmentOffset, segmentOutput: segmentOutput, expandSegment: expandSegment, findSegment: findSegment, planOutput: planOutput,
     planMediaOrder: planMediaOrder, mediaUrl: mediaUrl };
 });
