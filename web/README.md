@@ -28,7 +28,7 @@ npm start
 
 No PowerShell, configure as mesmas variáveis com `$env:FBS_ADMIN_PASSWORD = '...'` e `$env:FBS_PUBLIC_ORIGIN = 'http://localhost:8788'`.
 
-Para produção, configure `NODE_ENV=production`, `FBS_PUBLIC_ORIGIN=https://seu-dominio` e `FBS_DATA_DIR` com um caminho absoluto privado, **fora da aplicação, de `public_html` e de `hbuilds`**. A senha deve ter pelo menos 16 caracteres. O servidor usa `PORT` fornecida pela hospedagem, ou 8788. Na Hostinger, configure `hosting.js` como arquivo de entrada: o carregador importa o arquivo e não o executa como `require.main`. Publique somente o conteúdo desta pasta; sessões e arquivos privados nunca entram no arquivo de publicação.
+Para produção, configure `NODE_ENV=production`, `FBS_PUBLIC_ORIGIN=https://seu-dominio` e `FBS_DATA_DIR` com um caminho absoluto privado, **fora da aplicação, de `public_html` e de `hbuilds`**. A senha (`FBS_ADMIN_PASSWORD`) é um PIN de exatamente 6 números ou uma senha com pelo menos 16 caracteres. Depois de 10 senhas erradas em 15 minutos, o login fica bloqueado para todos até a janela acabar; sessões abertas continuam valendo por 30 dias. O servidor usa `PORT` fornecida pela hospedagem, ou 8788. Na Hostinger, configure `hosting.js` como arquivo de entrada: o carregador importa o arquivo e não o executa como `require.main`. Publique somente o conteúdo desta pasta; sessões e arquivos privados nunca entram no arquivo de publicação.
 
 O serviço usa um processo Node.js e uma fila serial de gravações atômicas. Faça backup do diretório inteiro indicado por `FBS_DATA_DIR`, com o serviço parado, para preservar `state.json`, mídias e envios. Não execute duas instâncias sobre o mesmo diretório. A senha fica nas variáveis de ambiente; os cookies e desafios são guardados como hashes.
 

@@ -305,3 +305,28 @@ test('manifesto lista mídias do plano na ordem de uso com hashes por bloco', as
   assert.equal(manifest.files[1].chunkSize, 8 * 1024 * 1024);
   assert.ok(manifest.planHash);
 });
+
+test('senha do operador: PIN de 6 números aceito e bloqueio global após 10 senhas erradas', async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fbs-pin-'));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+  for (const weak of ['12345', '1234567', 'abcdef', 'senha-curta']) {
+    await assert.rejects(StudioStore.open({ dataDir, adminPassword: weak }), /6 números ou com pelo menos 16/, weak);
+  }
+  const clock = { now: Date.UTC(2026, 10, 24, 12, 0, 0) };
+  const app = await createStudioServer({ dataDir, adminPassword: '482913', publicOrigin: ORIGIN, secureCookies: false, now: () => clock.now, backfillHashes: false });
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  t.after(() => app.close());
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+
+  const owner = client(base);
+  owner.csrf = (await owner.request('/api/v1/login', { password: '482913' })).body.csrf;
+  const stranger = client(base);
+  for (let i = 0; i < 10; i++) await stranger.request('/api/v1/login', { password: String(100000 + i) }, { expected: 401 });
+  // Bloqueado para todos, inclusive com o PIN certo.
+  await client(base).request('/api/v1/login', { password: '482913' }, { expected: 429 });
+  // Quem já estava logado continua operando.
+  await owner.request('/api/v1/spaces', { name: 'Durante o bloqueio' }, { expected: 201 });
+  // Passada a janela de 15 minutos, o PIN certo volta a funcionar.
+  clock.now += 15 * 60 * 1000 + 1;
+  await client(base).request('/api/v1/login', { password: '482913' });
+});

@@ -6,6 +6,11 @@ const { assertOrigin, cookie, digest, equal, issueCookie, json, readJson } = req
 
 const SESSION_SECONDS = 30 * 24 * 60 * 60;
 const PAIRING_MS = 5 * 60 * 1000;
+// Bloqueio global de login: com um PIN de 6 números, o limite por IP não basta (IPs podem variar).
+// Depois de LOGIN_FAILURE_LIMIT senhas erradas na janela, ninguém entra até a janela acabar;
+// sessões já abertas continuam valendo.
+const LOGIN_FAILURE_LIMIT = 10;
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const COOKIE_NAMES = { operator: 'fbs_operator', screen: 'fbs_screen' };
 const SECRET_PATTERN = /^[0-9a-f]{64}$/;
 
@@ -47,6 +52,7 @@ function pairingWithChallenge(db, id, challenge) {
 
 function createSessions({ store, publicOrigin, secureCookies }) {
   const attempts = { login: new Map(), pairing: new Map() };
+  let loginFailures = [];
 
   function rateLimit(req, action, limit, windowMs) {
     const entries = attempts[action];
@@ -92,8 +98,14 @@ function createSessions({ store, publicOrigin, secureCookies }) {
     if (method === 'POST' && pathname === '/api/v1/login') {
       assertOrigin(req, publicOrigin);
       rateLimit(req, 'login', 20, PAIRING_MS);
+      const started = store.now();
+      loginFailures = loginFailures.filter(at => at > started - LOGIN_FAILURE_WINDOW_MS);
+      if (loginFailures.length >= LOGIN_FAILURE_LIMIT) {
+        throw new StudioError(429, 'Muitas senhas erradas. O acesso foi bloqueado por 15 minutos.');
+      }
       const { password } = await readJson(req);
       if (typeof password !== 'string' || !equal(digest(password), digest(store.password))) {
+        loginFailures.push(started);
         throw new StudioError(401, 'Senha inválida.');
       }
       const { session, secret } = await store.change(db => {
@@ -241,6 +253,7 @@ function createSessions({ store, publicOrigin, secureCookies }) {
   function close() {
     attempts.login.clear();
     attempts.pairing.clear();
+    loginFailures = [];
   }
 
   return { handle, authorize, csrf, close };
