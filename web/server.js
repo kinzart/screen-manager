@@ -18,6 +18,10 @@ const ASSETS = {
   '/studio.js': ['studio.js', 'application/javascript; charset=utf-8'],
   '/player.css': ['player.css', 'text/css; charset=utf-8'],
   '/player.js': ['player.js', 'application/javascript; charset=utf-8'],
+  '/fbs-core.js': ['fbs-core.js', 'application/javascript; charset=utf-8'],
+  '/studio-program.js': ['studio-program.js', 'application/javascript; charset=utf-8'],
+  '/tv-cache.js': ['tv-cache.js', 'application/javascript; charset=utf-8'],
+  '/tv-sw.js': ['tv-sw.js', 'application/javascript; charset=utf-8'],
 };
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -41,6 +45,7 @@ async function createStudioServer(options = {}) {
   const api = createApi({ store, publicOrigin, secureCookies, sessions });
   const media = createMedia({ store, publicOrigin, authorize: sessions.authorize, csrf: sessions.csrf });
   await media.ready;
+  if (options.backfillHashes !== false) media.backfill().catch(() => {});
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');

@@ -1,14 +1,14 @@
 {
   "name": "fbs-studio-web",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Controle web de sessões e telas para FBS Screen Manager",
   "main": "hosting.js",
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node server.js",
-    "build": "node --check server.js",
-    "test": "node --test ../tests/studio.test.cjs"
+    "build": "node --check server.js && node --check orchestrator.js && node --check screen-output.js && node --check screen-control.js && node --check public/fbs-core.js",
+    "test": "node --test --test-timeout=120000 ../tests/studio.test.cjs ../tests/orchestrator.test.cjs ../tests/central.test.cjs"
   },
   "dependencies": {
     "qrcode-generator": "2.0.4"

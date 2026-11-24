@@ -3,11 +3,12 @@
 const fs = require('node:fs/promises');
 const { createReadStream } = require('node:fs');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const { StudioError, json, readJson } = require('./http-utils');
-const { resolveScreen } = require('./engine');
+const { resolveScreenOutput } = require('./screen-output');
 
 const CHUNK = 2 * 1024 * 1024;
+const HASH_CHUNK = 8 * 1024 * 1024; // blocos verificáveis pelo receptor (cache)
 const MAX_FILE = 512 * 1024 * 1024;
 const QUOTA = 2 * 1024 * 1024 * 1024;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -27,10 +28,32 @@ function sniff(buffer) {
   return null;
 }
 
+// SHA-256 do arquivo inteiro e de cada bloco de HASH_CHUNK, em streaming (memória limitada a um bloco de leitura).
+async function hashFile(file) {
+  const whole = createHash('sha256');
+  const chunks = [];
+  let block = createHash('sha256');
+  let filled = 0;
+  for await (const data of createReadStream(file, { highWaterMark: 1024 * 1024 })) {
+    whole.update(data);
+    let offset = 0;
+    while (offset < data.length) {
+      const take = Math.min(HASH_CHUNK - filled, data.length - offset);
+      block.update(data.subarray(offset, offset + take));
+      filled += take;
+      offset += take;
+      if (filled === HASH_CHUNK) { chunks.push(block.digest('hex')); block = createHash('sha256'); filled = 0; }
+    }
+  }
+  if (filled) chunks.push(block.digest('hex'));
+  return { sha256: whole.digest('hex'), chunkSize: HASH_CHUNK, chunks };
+}
+
 function createMedia({ store, authorize, csrf }) {
   const uploadsDir = path.join(store.dataDir, 'uploads');
   const mediaDir = path.join(store.dataDir, 'media');
   const busy = new Set();
+  const planMedia = new Map();
   let patches = 0;
   const temporary = id => path.join(uploadsDir, `${id}.part`);
   const mediaPath = media => path.join(mediaDir, `${media.id}.${media.extension}`);
@@ -60,9 +83,15 @@ function createMedia({ store, authorize, csrf }) {
   function authorizeMedia(req, role, media) {
     const session = authorize(req, role);
     if (role === 'screen') {
-      const { sourceId } = resolveScreen(store.db, session.screenId);
-      const playlist = sourceId && store.db.playlists[sourceId];
-      if (!playlist || !playlist.items.some(item => item.mediaId === media.id)) throw new StudioError(403, 'Esta mídia não pertence à sessão desta tela.', 'MEDIA_DENIED');
+      // Permitido: mídias do plano da tela (sessão atual e próximas do horizonte), para o pré-carregamento.
+      const key = `${store.db.revision}:${session.screenId}:${Math.floor(store.now() / 30000)}`;
+      let allowed = planMedia.get(key);
+      if (!allowed) {
+        allowed = resolveScreenOutput(store.db, session.screenId, store.now())?.mediaIds ?? new Set();
+        if (planMedia.size > 256) planMedia.clear();
+        planMedia.set(key, allowed);
+      }
+      if (!allowed.has(media.id)) throw new StudioError(403, 'Esta mídia não pertence à programação desta tela.', 'MEDIA_DENIED');
     }
   }
   async function syncMediaDirectories() {
@@ -246,7 +275,8 @@ function createMedia({ store, authorize, csrf }) {
         } finally { await file.close(); }
         if (!mime || mime !== upload.mime) throw new StudioError(415, 'O conteúdo do arquivo não corresponde ao formato informado.', 'INVALID_MEDIA');
         const [type, extension] = TYPES[mime];
-        const media = { id, spaceId: upload.spaceId, name: upload.name, type, mime, extension, size: upload.size, createdAt: store.now() };
+        const integrity = await hashFile(temporary(id));
+        const media = { id, spaceId: upload.spaceId, name: upload.name, type, mime, extension, size: upload.size, createdAt: store.now(), ...integrity };
         destination = mediaPath(media);
         await fs.rename(temporary(id), destination);
         renamed = true;
@@ -271,8 +301,25 @@ function createMedia({ store, authorize, csrf }) {
     }
     return false;
   }
+  // Mídias anteriores ao esquema 2: hash em segundo plano, uma por vez, sem bloquear a abertura.
+  let hashing = Promise.resolve();
+  handle.backfill = () => {
+    hashing = hashing.then(async () => {
+      for (const media of Object.values(store.db.media)) {
+        if (media.sha256 || store._closed) continue;
+        try {
+          const integrity = await hashFile(mediaPath(media));
+          await store.change(db => { if (db.media[media.id] && !db.media[media.id].sha256) Object.assign(db.media[media.id], integrity); });
+        } catch (error) {
+          if (store._closed) return;
+          if (error.code !== 'ENOENT') console.error('FBS Studio: hash de mídia', media.id, error.message);
+        }
+      }
+    });
+    return hashing;
+  };
   handle.ready = ready;
   return handle;
 }
 
-module.exports = { createMedia, CHUNK, MAX_FILE, QUOTA };
+module.exports = { createMedia, hashFile, CHUNK, HASH_CHUNK, MAX_FILE, QUOTA };
