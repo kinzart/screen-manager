@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#11110f">
+  <link rel="manifest" href="/studio.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <title>Avisos · FBS Studio</title>
+  <link rel="stylesheet" href="/studio.css?v=1.2.0">
+  <link rel="stylesheet" href="/editor.css?v=1.2.0">
+  <script src="/editor.js?v=1.2.0" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="/studio" aria-label="FBS Studio"><span class="brand-mark" aria-hidden="true"></span><span>FBS <span class="brand-secondary">Avisos</span></span></a>
+    <div class="masthead-controls">
+      <a class="button quiet" href="/studio" data-testid="back-to-studio">‹ Voltar ao painel</a>
+    </div>
+  </header>
+
+  <main class="editor">
+    <section class="editor-stage" aria-label="Prévia do aviso">
+      <canvas id="canvas" width="1920" height="1080" data-testid="editor-canvas" role="img" aria-label="Prévia do aviso em 16:9"></canvas>
+    </section>
+
+    <section class="editor-controls" aria-label="Conteúdo do aviso">
+      <div class="editor-card stack">
+        <h1 class="editor-title">Criar aviso</h1>
+        <p class="field-hint">Escreva, escolha um fundo e mande para a tela. Funciona com emojis do teclado.</p>
+        <label for="title">Título</label>
+        <input id="title" data-testid="editor-title" maxlength="80" value="Aviso importante 📢" autocomplete="off">
+        <label for="message">Mensagem</label>
+        <textarea id="message" data-testid="editor-message" rows="4" maxlength="400">Escreva aqui o seu comunicado ✨</textarea>
+        <label for="footer">Rodapé <span class="optional">(opcional)</span></label>
+        <input id="footer" data-testid="editor-footer" maxlength="80" placeholder="Ex.: Domingo, 19h · Salão principal" autocomplete="off">
+        <div class="emoji-row" id="emojis" aria-label="Inserir emoji"></div>
+      </div>
+
+      <div class="editor-card stack">
+        <h2>Visual</h2>
+        <div class="swatches" id="themes" role="radiogroup" aria-label="Fundo"></div>
+        <label class="file-drop" for="background-file">
+          <span class="file-title">Usar uma foto de fundo</span>
+          <span>A foto fica escurecida para o texto aparecer</span>
+          <input id="background-file" data-testid="editor-background" type="file" accept="image/*">
+        </label>
+        <button type="button" id="clear-background" hidden>Remover foto</button>
+        <div class="editor-row">
+          <label for="scale">Tamanho do texto</label>
+          <input id="scale" type="range" min="70" max="140" step="5" value="100">
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Alinhamento">
+          <button type="button" data-align="center" aria-pressed="true">Centro</button>
+          <button type="button" data-align="left" aria-pressed="false">Esquerda</button>
+        </div>
+      </div>
+
+      <div class="editor-card stack">
+        <h2>Usar o aviso</h2>
+        <div class="actions">
+          <button type="button" id="download-png" data-testid="download-png">Baixar PNG</button>
+          <button type="button" id="download-jpg" data-testid="download-jpg">Baixar JPG</button>
+        </div>
+        <div id="send-area" class="stack" hidden>
+          <label for="space">Espaço</label>
+          <select id="space" data-testid="editor-space"></select>
+          <label for="screen">Mostrar na tela</label>
+          <select id="screen" data-testid="editor-screen"></select>
+          <label for="seconds">Tempo de cada exibição (segundos)</label>
+          <input id="seconds" type="number" min="3" max="3600" value="15" inputmode="numeric">
+          <div class="actions">
+            <button type="button" class="primary" id="send-show" data-testid="send-show">Mostrar agora na tela</button>
+            <button type="button" id="send-library" data-testid="send-library">Só salvar na biblioteca</button>
+          </div>
+          <p class="field-hint">"Mostrar agora" cria a sessão do aviso e assume a tela. Para voltar à programação, use "Liberar" no painel.</p>
+        </div>
+        <p id="login-hint" class="field-hint" hidden>Para mandar para uma tela, <a href="/studio">entre no painel</a> e volte aqui.</p>
+        <p id="progress" class="field-hint" role="status"></p>
+      </div>
+    </section>
+  </main>
+  <p id="notice" class="notice" role="status" hidden></p>
+</body>
+</html>

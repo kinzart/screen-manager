@@ -1,0 +1,21 @@
+{
+  "name": "FBS Studio",
+  "short_name": "FBS Studio",
+  "description": "Painel para controlar as telas FBS.",
+  "id": "/studio",
+  "start_url": "/studio",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11110f",
+  "theme_color": "#11110f",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Criar aviso", "url": "/avisos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,13 +1,15 @@
 {
   "name": "fbs-studio-web",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "Controle web de sessões e telas para FBS Screen Manager",
   "main": "hosting.js",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
-    "build": "node --check server.js && node --check orchestrator.js && node --check screen-output.js && node --check screen-control.js && node --check public/fbs-core.js",
+    "build": "node --check server.js && node --check api.js && node --check media.js && node --check sessions.js && node --check store.js && node --check orchestrator.js && node --check screen-output.js && node --check screen-control.js && node --check public/fbs-core.js && node --check public/studio.js && node --check public/studio-program.js && node --check public/player.js && node --check public/editor.js && node --check public/studio-sw.js && node --check public/tv-cache.js && node --check public/tv-sw.js && node -e \"JSON.parse(require('fs').readFileSync('public/studio.webmanifest','utf8'))\"",
     "test": "node --test --test-timeout=120000 ../tests/studio.test.cjs ../tests/orchestrator.test.cjs ../tests/central.test.cjs"
   },
   "dependencies": {

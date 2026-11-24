@@ -2,19 +2,28 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <link rel="manifest" href="/studio.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FBS Studio">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#11110f">
   <title>FBS Studio</title>
-  <link rel="stylesheet" href="/studio.css?v=1.1.0">
-  <script src="/studio.js?v=1.1.0" defer></script>
-  <script src="/studio-program.js?v=1.1.0" defer></script>
+  <link rel="stylesheet" href="/studio.css?v=1.2.0">
+  <script src="/studio.js?v=1.2.0" defer></script>
+  <script src="/studio-program.js?v=1.2.0" defer></script>
 </head>
 <body>
   <header class="masthead">
     <a class="brand" href="/studio" aria-label="FBS Studio"><span class="brand-mark" aria-hidden="true"></span><span>FBS <span class="brand-secondary">Studio</span></span></a>
     <div class="masthead-controls" id="masthead-controls" hidden>
       <span class="connection" id="connection" data-state="connecting" role="status">Conectando</span>
-      <a class="button quiet" href="/tv" target="_blank" rel="noopener">Abrir receptor <span aria-hidden="true">↗</span></a>
+      <button type="button" class="quiet" id="install-app" data-testid="install-app" hidden>Instalar app</button>
+      <a class="button quiet" href="/avisos" data-testid="open-editor">Criar aviso</a>
+      <a class="button quiet desktop-only" href="/tv" target="_blank" rel="noopener">Abrir receptor <span aria-hidden="true">↗</span></a>
       <button type="button" class="quiet" id="logout">Sair</button>
     </div>
   </header>
@@ -38,6 +47,7 @@
         <label for="workspace">Espaço</label>
         <select id="workspace" data-testid="workspace-select"></select>
         <button id="new-space" data-testid="new-space" type="button">Novo espaço</button>
+        <button id="space-menu" data-testid="space-menu" type="button" class="quiet icon-button" aria-label="Ações do espaço">⋯</button>
       </div>
       <p id="space-summary" class="workspace-summary"></p>
     </section>
@@ -59,11 +69,12 @@
             <div class="graph-empty" id="graph-empty"><span class="empty-mark" aria-hidden="true"></span><strong>O mapa está vazio</strong><p>Crie uma sessão e pareie uma tela para enviar conteúdo.</p></div>
           </div>
         </div>
-        <div class="graph-footer"><span id="graph-count"></span><span>Arraste os nós para organizar o mapa</span></div>
+        <div class="graph-footer"><span id="graph-count"></span><span>Toque num card para ver as ações · arraste para organizar</span></div>
       </section>
 
       <aside class="console" aria-label="Painel de operação">
         <div class="tabs" aria-label="Painéis do estúdio">
+          <button type="button" id="tab-map" class="mobile-only" data-testid="map-tab" aria-pressed="false">Mapa</button>
           <button type="button" id="tab-inspect" data-testid="inspect-tab" aria-controls="inspect" aria-pressed="true">Controle</button>
           <button type="button" id="tab-library" data-testid="library-tab" aria-controls="library" aria-pressed="false">Biblioteca</button>
           <button type="button" id="tab-pair" data-testid="pair-tab" aria-controls="pair" aria-pressed="false">Parear <span id="pair-badge" class="badge" hidden></span></button>
@@ -97,6 +108,26 @@
       <input data-testid="create-name" id="create-name" maxlength="80" required>
       <p class="error" id="dialog-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="dialog-cancel" type="button">Cancelar</button><button class="primary" data-testid="create-submit" id="dialog-submit" type="submit">Salvar</button></div>
+    </form>
+  </dialog>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title" data-testid="action-sheet">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <div class="sheet-kind" id="sheet-kind"></div>
+      <h2 id="sheet-title"></h2>
+      <p id="sheet-caption"></p>
+    </div>
+    <div class="sheet-actions" id="sheet-actions"></div>
+    <button type="button" class="sheet-cancel" id="sheet-cancel" data-testid="sheet-cancel">Fechar</button>
+  </dialog>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" data-testid="confirm-dialog">
+    <form id="confirm-form" class="stack">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-copy"></p>
+      <label for="confirm-input" id="confirm-label" hidden></label>
+      <input id="confirm-input" data-testid="confirm-input" autocomplete="off" hidden>
+      <div class="dialog-actions"><button id="confirm-cancel" type="button">Cancelar</button><button class="danger-solid" id="confirm-submit" data-testid="confirm-submit" type="submit">Excluir</button></div>
     </form>
   </dialog>
   <p id="notice" class="notice" role="status" hidden></p>

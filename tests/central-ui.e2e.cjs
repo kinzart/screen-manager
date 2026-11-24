@@ -83,6 +83,7 @@ async function waitUntil(check, message, timeout = 20000) {
     await phone.getByTestId('login-submit').click();
     await phone.getByTestId('workspace-select').selectOption(space.id);
     await phone.locator(`[data-testid="screen-node"][data-id="${screen.id}"]`).getByTestId('node-select').click();
+    await phone.getByTestId('sheet-open').click();
     await phone.getByTestId('screen-status').waitFor();
 
     // Monta a programação pela interface: Abertura → Louvor.

@@ -14,6 +14,14 @@ const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const COOKIE_NAMES = { operator: 'fbs_operator', screen: 'fbs_screen' };
 const SECRET_PATTERN = /^[0-9a-f]{64}$/;
 
+// Próximo nome livre no formato "FBS N" dentro do espaço.
+function nextScreenName(db, spaceId) {
+  const used = new Set(Object.values(db.screens).filter(node => node.spaceId === spaceId).map(node => node.name.trim().toLowerCase()));
+  let n = 1;
+  while (used.has(`fbs ${n}`)) n += 1;
+  return `FBS ${n}`;
+}
+
 function nameForScreen(value, fallback) {
   if (value === undefined) return fallback;
   const name = typeof value === 'string' ? value.trim() : '';
@@ -234,8 +242,11 @@ function createSessions({ store, publicOrigin, secureCookies }) {
           return target;
         }
         const count = Object.values(db.screens).filter(node => node.spaceId === spaceId).length;
+        const screenName = typeof name === 'string' && name.trim() ? nameForScreen(name, '') : nextScreenName(db, spaceId);
+        const taken = Object.values(db.screens).some(node => node.spaceId === spaceId && node.name.trim().toLowerCase() === screenName.trim().toLowerCase());
+        if (taken) throw new StudioError(409, `Já existe uma tela chamada "${screenName}" neste espaço. Escolha outro nome.`, 'DUPLICATE_NAME');
         const created = {
-          id: randomUUID(), spaceId, name: nameForScreen(name, pairing.name), version: 1,
+          id: randomUUID(), spaceId, name: screenName, version: 1,
           routeRevision: 1, input: null, position: { x: 415, y: Math.min(4000, 45 + count * 110) }, createdAt: now,
           program: null, override: null, commands: [], device: null, controlRevision: 0,
         };

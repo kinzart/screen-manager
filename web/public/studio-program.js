@@ -11,7 +11,7 @@
   const ACTIONS = {
     play: 'Reproduzir', pause: 'Pausar', stop: 'Parar', restart: 'Reiniciar', 'next-session': 'Próxima sessão',
     'previous-session': 'Sessão anterior', 'start-entry': 'Iniciar entrada', 'next-item': 'Próxima mídia',
-    'previous-item': 'Mídia anterior', take: 'Assumir sessão', release: 'Liberar controle manual'
+    'previous-item': 'Mídia anterior', take: 'Assumir sessão', release: 'Liberar controle manual', reload: 'Reiniciar tela'
   };
   let draft = null;
 
@@ -181,6 +181,7 @@
       for (const item of sessions) option(select, item.id, item.name, current);
     }
     $('take-release').disabled = !override;
+    if ($('screen-reload')) $('screen-reload').disabled = !screen.online;
   }
 
   // ---------------------------------------------------------------- programação
@@ -382,13 +383,13 @@
     discard.id = 'program-discard';
     const remove = button('Remover programação', () => {
       const current = get('screen', screen.id);
-      if (!current.program || !window.confirm('Remover a programação? A tela volta a seguir a rota do mapa.')) return;
-      mutate(() => api('/screens/' + screen.id + '/program', 'PUT', { version: current.version, program: null }), (updated) => {
+      if (!current.program) return;
+      window.FBSConfirm({ title: 'Remover a programação?', copy: 'A tela volta a seguir a rota do mapa.', confirm: 'Remover' }).then((ok) => ok && mutate(() => api('/screens/' + screen.id + '/program', 'PUT', { version: current.version, program: null }), (updated) => {
         Object.assign(current, updated);
         draft = fromScreen(current);
         renderEditor();
         announce('Programação removida.');
-      });
+      }));
     }, { className: 'danger', test: 'program-remove' });
     remove.id = 'program-remove';
     footer.append(save, discard, remove, status);
@@ -408,11 +409,13 @@
     buildCommands(body, screen);
     buildEditor(body, screen);
     const device = button('Desconectar aparelho', () => {
-      if (!window.confirm('Desconectar o aparelho desta tela? A programação e as rotas são mantidas; o aparelho precisará parear de novo.')) return;
-      mutate(() => api('/screens/' + screen.id + '/revoke', 'POST', {}), () => announce('Aparelho desconectado. A tela foi mantida.'));
+      window.FBSConfirm({ title: 'Desconectar o aparelho?', copy: 'A programação e as rotas são mantidas; o aparelho precisará parear de novo.', confirm: 'Desconectar' })
+        .then((ok) => ok && mutate(() => api('/screens/' + screen.id + '/revoke', 'POST', {}), () => announce('Aparelho desconectado. A tela foi mantida.')));
     }, { test: 'revoke-device' });
+    const reload = button('⟳ Reiniciar tela', () => screenCommand(get('screen', screen.id), 'reload'), { test: 'screen-reload' });
+    reload.id = 'screen-reload';
     const devices = element('div', 'actions');
-    devices.append(device);
+    devices.append(reload, device);
     body.append(devices);
     draft = null;
     sync(screen);

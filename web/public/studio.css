@@ -244,3 +244,62 @@ dialog::backdrop { background: #080806c9; }
   .panel-heading button { flex: none; }
   .graph-scroll { height: 360px; }
 }
+/* ---- Uso como app no celular: sem zoom por toque duplo/pinça, sem realce azul, áreas seguras. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); overscroll-behavior-y: none; }
+button, .button, .node-info { -webkit-user-select: none; user-select: none; }
+button:active:enabled, .button:active { transform: scale(.98); }
+.danger-solid { background: #b8432f; border-color: #b8432f; color: #fff; }
+.danger-solid:enabled:hover { background: #cf5039; border-color: #cf5039; }
+.icon-button { min-width: 44px; font-size: 1.2rem; padding-inline: .5rem; }
+/* ---- Menu de ações (bottom sheet no celular, cartão central no computador). */
+dialog.sheet { width: min(440px, calc(100% - 2rem)); padding: 0; overflow: hidden auto; max-height: min(85vh, 720px); }
+.sheet-grip { display: none; }
+.sheet-head { display: grid; gap: .2rem; padding: 1rem 1.1rem .75rem; border-bottom: 1px solid var(--line); }
+.sheet-kind { color: var(--amber); font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.sheet-head h2 { overflow-wrap: anywhere; }
+.sheet-head p { font-size: .86rem; }
+.sheet-actions { display: grid; }
+.sheet-actions:empty { display: none; }
+.sheet-group { display: grid; padding: .35rem 0; border-bottom: 1px solid var(--line); }
+.sheet-action { justify-content: flex-start; gap: .85rem; min-height: 52px; width: 100%; padding: .55rem 1.1rem; border: 0; border-radius: 0; background: transparent; text-align: left; font-size: .98rem; font-weight: 600; }
+.sheet-action:enabled:hover, .sheet-action:focus-visible { background: var(--raised); }
+.sheet-action:active:enabled { transform: none; background: var(--line); }
+.sheet-icon { flex: none; width: 1.6rem; display: grid; place-items: center; color: var(--amber); font-size: 1.1rem; }
+.sheet-action.danger .sheet-icon, .sheet-action.danger { color: var(--error); }
+.sheet-label { display: grid; gap: .1rem; min-width: 0; }
+.sheet-label small { font-size: .78rem; font-weight: 450; color: var(--muted); }
+.sheet-cancel { width: calc(100% - 2.2rem); margin: .75rem 1.1rem 1rem; min-height: 48px; }
+/* ---- Biblioteca com miniatura e exclusão. */
+.media-row { flex-wrap: nowrap; }
+.media-row .row-label { flex: 1 1 auto; }
+.media-thumb { flex: none; width: 56px; height: 40px; border-radius: 4px; overflow: hidden; display: grid; place-items: center; background: var(--ground); border: 1px solid var(--line); color: var(--cyan); font-size: .9rem; }
+.media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* ---- Mapa compacto no celular (posições reduzidas no JS, cards menores aqui). */
+.graph[data-compact='true'] { min-width: 0; background-size: 14px 14px; }
+.graph[data-compact='true'] .node { width: 142px; height: 60px; }
+.graph[data-compact='true'] .node-info { padding: .35rem .95rem; gap: .12rem; }
+.graph[data-compact='true'] .node-title { font-size: .82rem; }
+.graph[data-compact='true'] .node-meta { font-size: .66rem; }
+@media (max-width: 640px) {
+  .desktop-only { display: none !important; }
+  dialog.sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0; border-inline: 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); }
+  dialog.sheet[open] { animation: sheet-in .22s cubic-bezier(.2, .8, .2, 1); }
+  .sheet-grip { display: block; width: 40px; height: 4px; border-radius: 4px; background: var(--edge); margin: .55rem auto 0; }
+  .graph-scroll { height: 240px; }
+  .notice { left: 1rem; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); max-width: none; }
+  .masthead-controls .button, .masthead-controls button { padding-inline: .5rem; }
+}
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { dialog.sheet[open] { animation: none; } button:active:enabled, .button:active { transform: none; } }
+/* ---- Navegação do celular: barra fixa embaixo com Mapa / Controle / Biblioteca / Parear. */
+.mobile-only { display: none !important; }
+@media (max-width: 640px) {
+  .mobile-only { display: inline-flex !important; }
+  .studio { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .tabs { position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; padding: .4rem .5rem calc(.4rem + env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line); border-bottom: 0; box-shadow: 0 -6px 20px #0006; }
+  .tabs button { min-height: 48px; font-size: .8rem; }
+  .notice { bottom: calc(4.9rem + env(safe-area-inset-bottom)); }
+  .workspace-field { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .console { scroll-margin-top: .5rem; }
+}

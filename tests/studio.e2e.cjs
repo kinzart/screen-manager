@@ -44,7 +44,7 @@ const { createStudioServer } = require('../web/server');
       throw new Error(message);
     }
     async function node(kind, id) { return studio.locator(`[data-testid="${kind}-node"][data-id="${id}"]`); }
-    async function select(kind, id) { await (await node(kind, id)).getByTestId('node-select').click(); }
+    async function select(kind, id) { await (await node(kind, id)).getByTestId('node-select').click(); await studio.getByTestId('sheet-open').click(); }
     async function snapshot() {
       return studio.evaluate(async () => {
         const spaceId = document.querySelector('[data-testid="workspace-select"]').value;
@@ -221,6 +221,7 @@ const { createStudioServer } = require('../web/server');
     await phone.goto(base + '/studio');
     await phone.getByTestId('new-playlist').waitFor();
     await phone.getByTestId('screen-node').first().getByTestId('node-select').click();
+    await phone.getByTestId('sheet-open').click();
     await phone.getByTestId('screen-source').selectOption('');
     await phone.waitForTimeout(1200);
     const overflow = await phone.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);

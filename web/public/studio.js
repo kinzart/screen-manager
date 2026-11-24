@@ -187,7 +187,7 @@ function switchTab(tab) {
   }
 }
 
-function choose(kind, id) {
+function choose(kind, id, reveal = false) {
   if (selected?.id !== id) {
     draft = null;
     selected = id ? { kind, id } : null;
@@ -197,6 +197,8 @@ function choose(kind, id) {
   renderNodes();
   renderInspector();
   updateTransport();
+  // No celular o painel fica abaixo do mapa: leva o operador até ele.
+  if (reveal && window.innerWidth <= 980) document.querySelector('.console').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function lastSpace() {
@@ -288,7 +290,7 @@ function addGraphNode(kind, id) {
   const title = element('strong', 'node-title');
   const meta = element('span', 'node-meta');
   const info = button('', (event) => {
-    if (!consumeClick(info, event)) choose(kind, id);
+    if (!consumeClick(info, event)) openSheet(kind, id);
   }, { className: 'node-info', test: 'node-select' });
   info.append(title, meta);
   info.addEventListener('pointerdown', (event) => beginGesture(event, kind, id, 'node'));
@@ -302,7 +304,7 @@ function addGraphNode(kind, id) {
   if (kind === 'screen') {
     input = button('', () => {
       if (outputPort) connect(id, outputPort);
-      else choose(kind, id);
+      else openSheet(kind, id);
     }, { className: 'port port-in', test: 'target-port' });
     card.append(input);
   }
@@ -312,6 +314,15 @@ function addGraphNode(kind, id) {
   return item;
 }
 
+// No celular o mapa usa cards menores e posições reduzidas para caber na largura da tela; as posições
+// salvas continuam em escala 1 (as mesmas do computador). x e y têm escalas próprias para não sobrepor cards.
+const COMPACT_CARD = 142;
+function mapScale() {
+  if (window.innerWidth > 640) return { x: 1, y: 1, compact: false };
+  const available = Math.max(260, scroll.clientWidth || window.innerWidth - 24);
+  return { x: Math.min(0.62, (available - COMPACT_CARD - 30) / 415), y: 0.62, compact: true };
+}
+
 function position(element, x, y) {
   element.style.left = x + 'px';
   element.style.top = y + 'px';
@@ -319,23 +330,26 @@ function position(element, x, y) {
 
 function renderNodes() {
   const seen = new Set();
-  let width = 670;
-  let height = scroll.clientHeight;
+  const k = mapScale();
+  graph.dataset.compact = String(k.compact);
+  let width = k.compact ? 0 : 670;
+  let height = k.compact ? 0 : scroll.clientHeight;
   for (const kind of ['playlist', 'screen']) {
     const values = listFor(kind);
     values.forEach((value, index) => {
       const node = nodes.get(value.id) || addGraphNode(kind, value.id);
       seen.add(value.id);
-      const current = gesture?.type === 'node' && gesture.id === value.id ? gesture.current : value.position;
-      const x = current?.x ?? (kind === 'playlist' ? 32 : 415);
-      const y = current?.y ?? 45 + index * 110;
+      const dragging = gesture?.type === 'node' && gesture.id === value.id;
+      const saved = value.position;
+      const x = dragging ? gesture.current.x : Math.round((saved?.x ?? (kind === 'playlist' ? 32 : 415)) * k.x);
+      const y = dragging ? gesture.current.y : Math.round((saved?.y ?? 45 + index * 110) * k.y);
       position(node.card, x, y);
-      width = Math.max(width, x + 240);
-      height = Math.max(height, y + 115);
+      width = Math.max(width, x + node.card.offsetWidth + 35);
+      height = Math.max(height, y + node.card.offsetHeight + 33);
       node.card.dataset.selected = String(value.id === selected?.id);
       node.info.setAttribute('aria-pressed', node.card.dataset.selected);
       setText(node.title, value.name);
-      setText(node.meta, kind === 'playlist' ? value.items.length + ' mídias' + (value.transport.playing ? ' · Em execução' : '') : labelForScreen(value));
+      setText(node.meta, kind === 'playlist' ? (value.items.length === 1 ? '1 mídia' : value.items.length + ' mídias') + (value.transport.playing ? ' · Em execução' : '') : labelForScreen(value));
       node.meta.dataset.online = String(kind === 'screen' && value.online && value.status !== 'error');
       node.output.setAttribute('aria-label', 'Saída de ' + value.name);
       node.output.setAttribute('aria-pressed', String(outputPort?.id === value.id));
@@ -348,6 +362,12 @@ function renderNodes() {
       nodes.delete(id);
     }
   }
+  if (k.compact) {
+    // Altura do mapa acompanha o conteúdo (sem um vazio enorme), limitada a 60% da tela.
+    const fit = Math.min(Math.round(window.innerHeight * 0.6), Math.max(seen.size ? 200 : 240, height + 12));
+    if (scroll.style.height !== fit + 'px') scroll.style.height = fit + 'px';
+    height = Math.max(height, fit - 2);
+  } else if (scroll.style.height) scroll.style.height = '';
   graph.style.minWidth = width + 'px';
   graph.style.height = height + 'px';
   $('graph-empty').hidden = seen.size > 0;
@@ -434,8 +454,9 @@ function moveGesture(event) {
   if (!gesture.moved) return;
   const bounds = graph.getBoundingClientRect();
   if (gesture.type === 'node') {
-    const x = Math.min(4000, Math.max(0, Math.round(gesture.center.x + dx)));
-    const y = Math.min(4000, Math.max(0, Math.round(gesture.center.y + dy)));
+    const k = mapScale();
+    const x = Math.min(4000 * k.x, Math.max(0, Math.round(gesture.center.x + dx)));
+    const y = Math.min(4000 * k.y, Math.max(0, Math.round(gesture.center.y + dy)));
     gesture.current = { x, y };
     position(nodes.get(gesture.id).card, x, y);
   } else {
@@ -461,10 +482,12 @@ function endGesture(event, cancelled = false) {
     if (target) connect(target.closest('.node').dataset.id, source);
   } else {
     const node = get(ended.kind, ended.id);
+    const k = mapScale();
+    const saved = { x: Math.min(4000, Math.round(ended.current.x / k.x)), y: Math.min(4000, Math.round(ended.current.y / k.y)) };
     if (node) mutate(() => api('/nodes/' + ended.kind + 's/' + ended.id + '/position', 'PATCH', {
-      version: node.version, ...ended.current
+      version: node.version, ...saved
     }), (updated) => {
-      node.position = updated.position || ended.current;
+      node.position = updated.position || saved;
       node.version = updated.version || node.version;
       renderNodes();
     }).then((ok) => { if (!ok) renderNodes(); });
@@ -635,11 +658,12 @@ function buildPlaylist(body, playlist) {
   conflict.id = 'draft-conflict';
   conflict.hidden = true;
   conflict.append(element('p', 'error', 'A fila foi alterada em outro painel.'), button('Recarregar fila', () => {
-    if (window.confirm('Recarregar a fila e descartar suas alterações?')) {
+    confirmAction({ title: 'Recarregar a fila?', copy: 'Suas alterações nesta fila serão descartadas.', confirm: 'Recarregar' }).then((ok) => {
+      if (!ok) return;
       drafts.delete(playlist.id);
       draft = makeDraft(get('playlist', playlist.id));
       fillDraft();
-    }
+    });
   }));
   form.append(conflict, pending);
   const actions = element('div', 'actions');
@@ -647,16 +671,7 @@ function buildPlaylist(body, playlist) {
   save.type = 'submit';
   save.id = 'playlist-save';
   save.dataset.testid = 'playlist-save';
-  actions.append(save, button('Excluir sessão', () => {
-    if (!window.confirm('Excluir esta sessão e desligar as telas ligadas a ela?')) return;
-    mutate(() => api('/playlists/' + playlist.id, 'DELETE'), () => {
-      drafts.delete(playlist.id);
-      selected = null;
-      draft = null;
-      setOutput(null);
-      announce('Sessão excluída.');
-    });
-  }, { className: 'danger' }));
+  actions.append(save, button('Excluir sessão', () => deletePlaylist(playlist.id), { className: 'danger', test: 'delete-playlist' }));
   form.append(actions);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -868,14 +883,7 @@ function buildScreen(body, screen) {
       done: () => announce('Tela renomeada.')
     });
   }, { test: 'rename-screen' });
-  const revoke = button('Revogar tela', () => {
-    if (!window.confirm('Revogar acesso desta tela e removê-la do mapa?')) return;
-    mutate(() => api('/screens/' + screen.id, 'DELETE'), () => {
-      selected = null;
-      setOutput(null);
-      announce('Tela revogada.');
-    });
-  }, { className: 'danger', test: 'revoke-screen' });
+  const revoke = button('Excluir tela', () => deleteScreen(screen.id), { className: 'danger', test: 'revoke-screen' });
   controls.append(disconnect, rename, revoke);
   body.append(controls);
   if (window.FBSProgram) window.FBSProgram.build(body, screen);
@@ -919,8 +927,20 @@ function renderMedia() {
   }
   for (const item of state.media) {
     const row = listRow(item.name, (item.type === 'video' ? 'Vídeo' : 'Imagem') + ' · ' + readableSize(item.size));
+    row.classList.add('media-row');
     row.dataset.id = item.id;
     row.dataset.testid = 'library-media';
+    const thumb = element('div', 'media-thumb');
+    thumb.setAttribute('aria-hidden', 'true');
+    if (item.type === 'image') {
+      const image = element('img');
+      image.loading = 'lazy';
+      image.alt = '';
+      image.src = '/api/v1/media/' + encodeURIComponent(item.id);
+      thumb.append(image);
+    } else thumb.textContent = '▶';
+    row.prepend(thumb);
+    row.append(button('Excluir', () => deleteMedia(item.id), { className: 'danger', test: 'media-delete', title: 'Excluir ' + item.name }));
     list.append(row);
   }
 }
@@ -953,7 +973,7 @@ function renderPairings() {
     const approve = button('Aprovar', () => {
       const workspace = spaceId;
       openDialog({
-        title: 'Aprovar tela', label: 'Nome da tela', name: pair.name,
+        title: 'Aprovar tela', label: 'Nome da tela', name: suggestScreenName(pair.name),
         copy: 'Código ' + pair.code, submit: 'Aprovar',
         perform: (name) => api('/spaces/' + workspace + '/pairings/' + pair.id + '/approve', 'POST', { name }),
         done: () => announce('Tela aprovada. Abra o mapa para conectar a origem.')
@@ -1120,6 +1140,272 @@ async function processUploads() {
   }
 }
 
+// ---------------------------------------------------------------- nomes, exclusões e confirmações
+function suggestScreenName(requested) {
+  const used = new Set(listFor('screen').map((screen) => screen.name.trim().toLowerCase()));
+  const generic = !requested || /^tela( fbs)?$/i.test(requested.trim());
+  if (!generic && !used.has(requested.trim().toLowerCase())) return requested.trim();
+  let n = 1;
+  while (used.has('fbs ' + n)) n++;
+  return 'FBS ' + n;
+}
+
+let confirmResolve = null;
+function confirmAction({ title, copy = '', confirm = 'Excluir', requireText = '', danger = true }) {
+  if (confirmResolve) confirmResolve(false);
+  setText($('confirm-title'), title);
+  setText($('confirm-copy'), copy);
+  setText($('confirm-submit'), confirm);
+  $('confirm-submit').className = danger ? 'danger-solid' : 'primary';
+  const input = $('confirm-input');
+  input.hidden = !requireText;
+  $('confirm-label').hidden = !requireText;
+  input.value = '';
+  input.dataset.expected = requireText;
+  setText($('confirm-label'), requireText ? 'Digite "' + requireText + '" para confirmar' : '');
+  $('confirm-submit').disabled = Boolean(requireText);
+  $('confirm-dialog').showModal();
+  (requireText ? input : $('confirm-cancel')).focus();
+  return new Promise((resolve) => { confirmResolve = resolve; });
+}
+
+function settleConfirm(value) {
+  const resolve = confirmResolve;
+  confirmResolve = null;
+  if ($('confirm-dialog').open) $('confirm-dialog').close();
+  if (resolve) resolve(value);
+}
+
+async function deletePlaylist(id) {
+  const playlist = get('playlist', id);
+  if (!playlist) return;
+  const screens = listFor('screen').filter((screen) => screen.input?.id === id).length;
+  const ok = await confirmAction({ title: 'Excluir a sessão "' + playlist.name + '"?',
+    copy: (screens ? screens + ' tela(s) ligada(s) a ela ficarão sem origem. ' : '') + 'As mídias continuam na biblioteca.' });
+  if (!ok) return;
+  mutate(() => api('/playlists/' + id, 'DELETE'), () => {
+    drafts.delete(id);
+    if (selected?.id === id) { selected = null; draft = null; }
+    setOutput(null);
+    announce('Sessão excluída.');
+  });
+}
+
+async function deleteScreen(id) {
+  const screen = get('screen', id);
+  if (!screen) return;
+  const ok = await confirmAction({ title: 'Excluir a tela "' + screen.name + '"?',
+    copy: 'A tela sai do mapa, perde a programação e o aparelho volta para o código de pareamento.' });
+  if (!ok) return;
+  mutate(() => api('/screens/' + id, 'DELETE'), () => {
+    if (selected?.id === id) selected = null;
+    setOutput(null);
+    announce('Tela excluída.');
+  });
+}
+
+async function deleteMedia(id) {
+  const media = state.media.find((item) => item.id === id);
+  if (!media) return;
+  const using = listFor('playlist').filter((playlist) => playlist.items.some((item) => item.mediaId === id)).map((playlist) => playlist.name);
+  const ok = await confirmAction({ title: 'Excluir "' + media.name + '"?',
+    copy: using.length ? 'Ela também sai das sessões: ' + using.join(', ') + '.' : 'O arquivo é apagado do servidor.' });
+  if (!ok) return;
+  mutate(() => api('/media/' + id, 'DELETE'), () => announce('Mídia excluída.'));
+}
+
+async function deleteSpace() {
+  const space = state?.spaces.find((item) => item.id === spaceId);
+  if (!space) return;
+  const ok = await confirmAction({ title: 'Excluir o espaço "' + space.name + '"?',
+    copy: 'Apaga todas as telas, sessões e mídias deste espaço. Não dá para desfazer.', requireText: space.name });
+  if (!ok) return;
+  mutate(() => api('/spaces/' + space.id, 'DELETE', { confirmName: space.name }), () => {
+    spaceId = '';
+    persist('fbs-studio-space', '');
+    selected = null;
+    draft = null;
+    setOutput(null);
+    announce('Espaço excluído.');
+  });
+}
+
+// ---------------------------------------------------------------- menu de ações (bottom sheet)
+function commandId() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function screenCommand(id, action, extra = {}, done = 'Comando enviado.') {
+  return mutate(() => api('/screens/' + id + '/commands', 'POST', { commandId: commandId(), action, ...extra }), () => announce(done));
+}
+
+function sheetButton(label, handler, { icon = '', danger = false, test = '', disabled = false, hint = '' } = {}) {
+  const node = element('button', 'sheet-action' + (danger ? ' danger' : ''));
+  node.type = 'button';
+  if (test) node.dataset.testid = test;
+  node.disabled = disabled;
+  const glyph = element('span', 'sheet-icon', icon);
+  glyph.setAttribute('aria-hidden', 'true');
+  const text = element('span', 'sheet-label');
+  text.append(element('span', '', label));
+  if (hint) text.append(element('small', '', hint));
+  node.append(glyph, text);
+  node.addEventListener('click', () => { closeSheet(); handler(); });
+  return node;
+}
+
+function showSheet(kindLabel, title, caption, groups) {
+  setText($('sheet-kind'), kindLabel);
+  setText($('sheet-title'), title);
+  setText($('sheet-caption'), caption);
+  $('sheet-caption').hidden = !caption;
+  const holder = $('sheet-actions');
+  holder.replaceChildren();
+  for (const group of groups.filter((entries) => entries.length)) {
+    const block = element('div', 'sheet-group');
+    block.append(...group);
+    holder.append(block);
+  }
+  if (!$('sheet').open) $('sheet').showModal();
+  holder.querySelector('button:enabled')?.focus({ preventScroll: true });
+}
+
+function closeSheet() {
+  if ($('sheet').open) $('sheet').close();
+}
+
+function openSheet(kind, id) {
+  if (kind === 'screen') screenSheet(id);
+  else if (kind === 'playlist') playlistSheet(id);
+}
+
+function screenSheet(id) {
+  const screen = get('screen', id);
+  if (!screen) return;
+  const program = screen.programState;
+  const controlled = Boolean(program?.enabled || program?.override);
+  const paused = Boolean(program?.paused || program?.override?.paused);
+  const live = [
+    sheetButton('Abrir controles da tela', () => choose('screen', id, true), { icon: '☰', test: 'sheet-open' }),
+    sheetButton('Assumir uma sessão agora', () => pickSession(id), { icon: '⇆', test: 'sheet-take', disabled: !listFor('playlist').some((item) => item.items.length),
+      hint: 'Mostra uma sessão na hora, por cima da agenda' }),
+  ];
+  if (program?.override) live.push(sheetButton('Liberar controle manual', () => screenCommand(id, 'release', {}, 'Tela devolvida à programação.'), { icon: '↩', test: 'sheet-release' }));
+  const playback = controlled ? [
+    paused ? sheetButton('Reproduzir', () => screenCommand(id, 'play'), { icon: '▶', test: 'sheet-play' })
+      : sheetButton('Pausar', () => screenCommand(id, 'pause'), { icon: 'Ⅱ', test: 'sheet-pause' }),
+    sheetButton('Próxima mídia', () => screenCommand(id, 'next-item'), { icon: '›', test: 'sheet-next-item' }),
+    ...(program?.enabled ? [
+      sheetButton('Próxima sessão', () => screenCommand(id, 'next-session'), { icon: '⏭', test: 'sheet-next-session' }),
+      sheetButton('Reiniciar programação', () => screenCommand(id, 'restart', {}, 'Programação reiniciada.'), { icon: '↺', test: 'sheet-restart' }),
+    ] : []),
+  ] : [];
+  const device = [
+    sheetButton('Reiniciar tela (recarregar)', () => screenCommand(id, 'reload', {}, 'A tela vai recarregar em instantes.'), { icon: '⟳', test: 'sheet-reload',
+      disabled: !screen.online, hint: screen.online ? 'Recarrega o app na TV' : 'A tela está desconectada' }),
+    sheetButton('Renomear', () => renameScreen(id), { icon: '✎', test: 'sheet-rename' }),
+  ];
+  if (screen.input) device.push(sheetButton('Desligar do mapa (sem origem)', () => connect(id, null), { icon: '⊘', test: 'sheet-disconnect' }));
+  const danger = [sheetButton('Excluir tela', () => deleteScreen(id), { icon: '✕', danger: true, test: 'sheet-delete' })];
+  showSheet('Tela', screen.name, labelForScreen(screen), [live, playback, device, danger]);
+}
+
+function playlistSheet(id) {
+  const playlist = get('playlist', id);
+  if (!playlist) return;
+  const screens = listFor('screen');
+  showSheet('Sessão', playlist.name, playlist.items.length === 1 ? '1 mídia' : playlist.items.length + ' mídias', [[
+    sheetButton('Editar sessão', () => choose('playlist', id, true), { icon: '☰', test: 'sheet-open' }),
+    sheetButton('Mostrar numa tela agora', () => pickScreen(id), { icon: '⇆', test: 'sheet-show', disabled: !screens.length || !playlist.items.length,
+      hint: playlist.items.length ? '' : 'Adicione mídias primeiro' }),
+  ], [
+    sheetButton('Renomear', () => renamePlaylist(id), { icon: '✎', test: 'sheet-rename' }),
+  ], [
+    sheetButton('Excluir sessão', () => deletePlaylist(id), { icon: '✕', danger: true, test: 'sheet-delete' }),
+  ]]);
+}
+
+function pickSession(screenId) {
+  const screen = get('screen', screenId);
+  const options = listFor('playlist').filter((playlist) => playlist.items.length).map((playlist) =>
+    sheetButton(playlist.name, () => screenCommand(screenId, 'take', { playlistId: playlist.id }, playlist.name + ' entrou em ' + screen.name + '.'),
+      { icon: '▶', test: 'sheet-pick' }));
+  showSheet('Assumir sessão', screen.name, options.length ? 'Escolha o que mostrar agora.' : 'Nenhuma sessão com mídias.', [options]);
+}
+
+function pickScreen(playlistId) {
+  const playlist = get('playlist', playlistId);
+  const options = listFor('screen').map((screen) =>
+    sheetButton(screen.name, () => screenCommand(screen.id, 'take', { playlistId }, playlist.name + ' entrou em ' + screen.name + '.'),
+      { icon: '▣', test: 'sheet-pick', hint: labelForScreen(screen) }));
+  showSheet('Mostrar sessão', playlist.name, 'Escolha a tela.', [options]);
+}
+
+function renameScreen(id) {
+  const current = get('screen', id);
+  openDialog({ title: 'Renomear tela', label: 'Nome da tela', name: current.name,
+    perform: (name) => api('/screens/' + id, 'PATCH', { name, version: get('screen', id).version }),
+    done: () => announce('Tela renomeada.') });
+}
+
+function renamePlaylist(id) {
+  const current = get('playlist', id);
+  openDialog({ title: 'Renomear sessão', label: 'Nome da sessão', name: current.name,
+    perform: (name) => api('/playlists/' + id, 'PUT', { name, version: get('playlist', id).version }),
+    done: () => { drafts.delete(id); inspectorKey = ''; announce('Sessão renomeada.'); } });
+}
+
+function spaceSheet() {
+  const space = state?.spaces.find((item) => item.id === spaceId);
+  showSheet('Espaço', space ? space.name : 'Espaço', '', [[
+    sheetButton('Novo espaço', () => createNode('space'), { icon: '+', test: 'sheet-new-space' }),
+    sheetButton('Criar aviso com texto e emojis', () => { location.href = '/avisos'; }, { icon: '✦', test: 'sheet-editor' }),
+  ], space ? [sheetButton('Excluir este espaço', () => deleteSpace(), { icon: '✕', danger: true, test: 'sheet-delete-space' })] : []]);
+}
+
+// ---------------------------------------------------------------- app instalável (PWA)
+let installPrompt = null;
+const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  $('install-app').hidden = standalone();
+});
+if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone()) $('install-app').hidden = false;
+$('install-app').addEventListener('click', async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    const choice = await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    if (choice?.outcome === 'accepted') $('install-app').hidden = true;
+    return;
+  }
+  showSheet('Instalar app', 'Adicionar à tela inicial',
+    'iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início". Android: menu ⋮ e depois "Instalar app".', []);
+});
+window.addEventListener('appinstalled', () => { $('install-app').hidden = true; });
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register('/studio-sw.js', { scope: '/studio' }).catch(() => {});
+}
+// Painel com cara de app: sem zoom por pinça no iOS (o resto vem do viewport e de touch-action).
+document.addEventListener('gesturestart', (event) => event.preventDefault());
+
+$('sheet-cancel').addEventListener('click', closeSheet);
+$('sheet').addEventListener('click', (event) => { if (event.target === $('sheet')) closeSheet(); });
+$('confirm-cancel').addEventListener('click', () => settleConfirm(false));
+$('confirm-dialog').addEventListener('cancel', () => settleConfirm(false));
+$('confirm-dialog').addEventListener('click', (event) => { if (event.target === $('confirm-dialog')) settleConfirm(false); });
+$('confirm-input').addEventListener('input', () => {
+  $('confirm-submit').disabled = $('confirm-input').value.trim() !== $('confirm-input').dataset.expected;
+});
+$('confirm-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!$('confirm-submit').disabled) settleConfirm(true);
+});
+$('space-menu').addEventListener('click', spaceSheet);
+window.FBSConfirm = confirmAction;
+
 $('login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const submit = event.currentTarget.querySelector('button');
@@ -1177,9 +1463,15 @@ $('workspace').addEventListener('change', () => {
 
 $('new-space').addEventListener('click', () => createNode('space'));
 $('new-playlist').addEventListener('click', () => createNode('playlist'));
+const compactLayout = () => window.innerWidth <= 640;
 for (const id of ['inspect', 'library', 'pair']) {
-  $('tab-' + id).addEventListener('click', () => switchTab(id));
+  $('tab-' + id).addEventListener('click', () => {
+    switchTab(id);
+    // No celular as abas ficam numa barra fixa embaixo: leva até o conteúdo escolhido.
+    if (compactLayout()) document.querySelector('.console').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
+$('tab-map').addEventListener('click', () => document.querySelector('.patchbay').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 $('upload-input').addEventListener('change', () => {
   enqueue($('upload-input').files);
   $('upload-input').value = '';
