@@ -303,3 +303,5 @@ dialog.sheet { width: min(440px, calc(100% - 2rem)); padding: 0; overflow: hidde
   .workspace-field { grid-template-columns: minmax(0, 1fr) auto auto; }
   .console { scroll-margin-top: .5rem; }
 }
+/* No celular o mapa não arrasta cards: o toque abre o menu e a rolagem da página continua livre. */
+.graph[data-compact='true'] .node-info { touch-action: pan-x pan-y; cursor: pointer; }

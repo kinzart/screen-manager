@@ -314,13 +314,20 @@ function addGraphNode(kind, id) {
   return item;
 }
 
-// No celular o mapa usa cards menores e posições reduzidas para caber na largura da tela; as posições
-// salvas continuam em escala 1 (as mesmas do computador). x e y têm escalas próprias para não sobrepor cards.
+// No celular o mapa vira duas colunas automáticas (sessões à esquerda, telas à direita, na ordem vertical
+// do computador), com cards menores e sem sobreposição. As posições salvas (do computador) não mudam;
+// arrastar cards fica só no computador, e o fio entre saída e entrada continua funcionando no celular.
 const COMPACT_CARD = 142;
+const COMPACT_ROW = 72;
 function mapScale() {
   if (window.innerWidth > 640) return { x: 1, y: 1, compact: false };
-  const available = Math.max(260, scroll.clientWidth || window.innerWidth - 24);
-  return { x: Math.min(0.62, (available - COMPACT_CARD - 30) / 415), y: 0.62, compact: true };
+  return { x: 1, y: 1, compact: true, width: Math.max(300, scroll.clientWidth || window.innerWidth - 24) };
+}
+
+function compactSlots(kind) {
+  const ordered = listFor(kind).map((value, index) => ({ id: value.id, y: value.position?.y ?? 45 + index * 110, index }))
+    .sort((a, b) => a.y - b.y || a.index - b.index);
+  return new Map(ordered.map((entry, rank) => [entry.id, rank]));
 }
 
 function position(element, x, y) {
@@ -336,13 +343,21 @@ function renderNodes() {
   let height = k.compact ? 0 : scroll.clientHeight;
   for (const kind of ['playlist', 'screen']) {
     const values = listFor(kind);
+    const slots = k.compact ? compactSlots(kind) : null;
     values.forEach((value, index) => {
       const node = nodes.get(value.id) || addGraphNode(kind, value.id);
       seen.add(value.id);
       const dragging = gesture?.type === 'node' && gesture.id === value.id;
       const saved = value.position;
-      const x = dragging ? gesture.current.x : Math.round((saved?.x ?? (kind === 'playlist' ? 32 : 415)) * k.x);
-      const y = dragging ? gesture.current.y : Math.round((saved?.y ?? 45 + index * 110) * k.y);
+      let x;
+      let y;
+      if (k.compact) {
+        x = kind === 'playlist' ? 10 : k.width - COMPACT_CARD - 26;
+        y = 14 + slots.get(value.id) * COMPACT_ROW;
+      } else {
+        x = dragging ? gesture.current.x : saved?.x ?? (kind === 'playlist' ? 32 : 415);
+        y = dragging ? gesture.current.y : saved?.y ?? 45 + index * 110;
+      }
       position(node.card, x, y);
       width = Math.max(width, x + node.card.offsetWidth + 35);
       height = Math.max(height, y + node.card.offsetHeight + 33);
@@ -363,6 +378,7 @@ function renderNodes() {
     }
   }
   if (k.compact) {
+    width = Math.min(width, k.width);
     // Altura do mapa acompanha o conteúdo (sem um vazio enorme), limitada a 60% da tela.
     const fit = Math.min(Math.round(window.innerHeight * 0.6), Math.max(seen.size ? 200 : 240, height + 12));
     if (scroll.style.height !== fit + 'px') scroll.style.height = fit + 'px';
@@ -435,6 +451,7 @@ function consumeClick(node, event) {
 
 function beginGesture(event, kind, id, type) {
   if (gesture || event.button !== 0 || !event.isPrimary) return;
+  if (type === 'node' && mapScale().compact) return; // no celular o toque no card abre o menu; arrastar é no computador
   suppress = null;
   const card = nodes.get(id).card;
   const center = { x: card.offsetLeft, y: card.offsetTop };
@@ -454,9 +471,8 @@ function moveGesture(event) {
   if (!gesture.moved) return;
   const bounds = graph.getBoundingClientRect();
   if (gesture.type === 'node') {
-    const k = mapScale();
-    const x = Math.min(4000 * k.x, Math.max(0, Math.round(gesture.center.x + dx)));
-    const y = Math.min(4000 * k.y, Math.max(0, Math.round(gesture.center.y + dy)));
+    const x = Math.min(4000, Math.max(0, Math.round(gesture.center.x + dx)));
+    const y = Math.min(4000, Math.max(0, Math.round(gesture.center.y + dy)));
     gesture.current = { x, y };
     position(nodes.get(gesture.id).card, x, y);
   } else {
@@ -482,8 +498,7 @@ function endGesture(event, cancelled = false) {
     if (target) connect(target.closest('.node').dataset.id, source);
   } else {
     const node = get(ended.kind, ended.id);
-    const k = mapScale();
-    const saved = { x: Math.min(4000, Math.round(ended.current.x / k.x)), y: Math.min(4000, Math.round(ended.current.y / k.y)) };
+    const saved = { x: ended.current.x, y: ended.current.y };
     if (node) mutate(() => api('/nodes/' + ended.kind + 's/' + ended.id + '/position', 'PATCH', {
       version: node.version, ...saved
     }), (updated) => {
