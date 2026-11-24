@@ -1,0 +1,44 @@
+name: Publicar Central (FBS Studio)
+
+# Todo push no main que mexa na Central roda os testes e, se passarem, publica o site.
+# As TVs e celulares recebem a versão nova sozinhos, porque carregam as páginas do site.
+# Exige o segredo HOSTINGER_API_TOKEN no repositório (Settings → Secrets and variables → Actions).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'scripts/deploy-studio.mjs'
+      - '.github/workflows/deploy-studio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-studio
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - run: npm test --prefix web
+      - run: npm run build --prefix web
+      - name: Publicar na Hostinger
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+        run: |
+          if [ -z "$HOSTINGER_API_TOKEN" ]; then
+            echo "::warning::Segredo HOSTINGER_API_TOKEN ausente: testes ok, publicação pulada."
+            exit 0
+          fi
+          node scripts/deploy-studio.mjs

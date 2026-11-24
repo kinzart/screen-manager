@@ -6,11 +6,15 @@ on:
     paths:
       - 'web/**'
       - 'tests/studio.test.cjs'
+      - 'tests/orchestrator.test.cjs'
+      - 'tests/central.test.cjs'
       - '.github/workflows/web-studio.yml'
   pull_request:
     paths:
       - 'web/**'
       - 'tests/studio.test.cjs'
+      - 'tests/orchestrator.test.cjs'
+      - 'tests/central.test.cjs'
       - '.github/workflows/web-studio.yml'
   workflow_dispatch:
 
