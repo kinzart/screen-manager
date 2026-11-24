@@ -1,6 +1,10 @@
 # FBS: progresso e retomada
 
-Branch de trabalho: `feat/fbs-central-orchestration` (criada a partir de `main@1ce4c2b`). **Não fazer merge no `main` sem aprovação.** Nada foi enviado ao remoto (sem push).
+Branch de trabalho: `feat/fbs-central-orchestration` (criada a partir de `main@1ce4c2b`). **Não fazer merge no `main` sem aprovação.** Branch enviada ao GitHub (`origin/feat/fbs-central-orchestration`).
+
+**Produção:** a Central 1.1.0 foi publicada em 2026-11-24 (commit `2bbe219`, build Hostinger `01a20e3b-8814-7107-990c-730151dfd7c5`) com `scripts/deploy-studio.mjs`. Conferido depois: `/health` = 1.1.0; login com a senha existente; espaço "Evento de validação" com 1 tela, 2 sessões e 8 mídias; `/tv` em HTTPS gera código e QR, Service Worker e contexto seguro disponíveis. A existência de `state.v1-*.json` no servidor **não** foi conferida (a API não lê fora de `public_html`).
+
+**Publicação automática:** `.github/workflows/deploy-studio.yml` publica a cada push no `main` que altere `web/` (testes antes) e depende do segredo `HOSTINGER_API_TOKEN`. Só passa a valer depois do merge desta branch no `main`.
 Git neste PC: use `git -c safe.directory=* <cmd>` (o repositório pertence a outro SID do Windows). O working tree usa CRLF (`core.autocrlf=true`).
 
 ## Como retomar
@@ -26,7 +30,9 @@ Git neste PC: use `git -c safe.directory=* <cmd>` (o repositório pertence a out
 | `bca56cc` | Núcleo: fbs-core (UMD), orquestrador, screen-output, screen-control, migração v2, hash de mídia, comandos, telemetria, manifesto e testes |
 | `e294d51` | Receptor: plano offline, cache em blocos verificados (SW), heartbeat, ciclos compactos e E2E |
 | `05c0872` | Interface da Central: estado, comandos, controle manual, editor de programação e E2E 375 px |
-| (este) | Documentação de releases, versão 1.1.0 do Studio e checkpoint |
+| `16f7172` | Documentação de releases, versão 1.1.0 do Studio e checkpoint |
+| `0533b10` | Script de publicação pela API da Hostinger e workflow de publicação automática |
+| `2bbe219` | Limpeza de pastas temporárias dos testes com novas tentativas (R6) |
 
 ## Fases
 
@@ -95,8 +101,8 @@ Legenda: PASS = verificado por teste automatizado executado aqui; NOT_TESTED = s
 |---|---|---|
 | R1 | Rollback para a Central 1.0.1 exige restaurar o backup v1 | Documentado em `FBS_RELEASES.md` §4 |
 | R5 | Sem HTTPS não há cache no receptor | Limite de plataforma; o painel mostra "Indisponível (use HTTPS)" |
-| R6 | 1 falha intermitente na suíte legada do Studio (auditoria) | Não reproduzida em 7 execuções seguintes |
-| R11 | 1 travamento de `central.test.cjs` observado logo após um E2E com falha | Não reproduzido em 4 execuções. Mitigado com `--test-timeout=120000` no script |
+| R6 | Falha intermitente na suíte legada do Studio | Causa: `ENOTEMPTY` ao apagar a pasta temporária no Windows. Corrigido com `maxRetries` (commit `2bbe219`); 12/12 verdes |
+| R11 | Travamento raro de `central.test.cjs` no Windows (2 ocorrências; a 2ª em 2026-11-24 durou cerca de 1 h mesmo com `--test-timeout`) | Não reproduzido em 21 execuções seguintes. Causa desconhecida; os testes usam relógio fixo. Se voltar: guardar o processo e inspecionar antes de matar |
 | R12 | Gatilhos no mesmo instante: perdedores descartados | Comportamento determinístico e documentado |
 | R13 | Pausa descarta gatilhos ocorridos durante ela | Documentado; o painel mostra "Pausada" |
 | R14 | Protocolo 2 não testado em WebView 83 (HY300) | Usa apenas ES2017 e APIs presentes no Chrome 83, mas falta prova em hardware |
@@ -105,5 +111,5 @@ Legenda: PASS = verificado por teste automatizado executado aqui; NOT_TESTED = s
 
 1. Testar no HY300/Android TV a página `/tv` da Central 1.1.0 em HTTPS: cache, modo offline e telemetria (`deviceId` e versão).
 2. Teste automatizado de `required` + `fallback` e de download interrompido no meio de um bloco (retomada).
-3. Deploy da Central 1.1.0, **somente com autorização**: backup do `FBS_DATA_DIR`, publicação, conferência de `/health` 1.1.0 e de `state.v1-*.json`.
+3. Conferir no Gerenciador de Arquivos do hPanel que `fbs-screen-manager-data/state.v1-*.json` existe; merge da branch no `main` (decisão do dono) para ativar a publicação automática.
 4. P-7 Permissões, P-8 canal de releases, P-9 exportar fila do Electron, P-10 receptor Electron com cache em disco.

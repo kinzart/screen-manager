@@ -51,7 +51,7 @@ function client(base) {
 
 async function setup(t) {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fbs-central-'));
-  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
   const clock = { now: Date.UTC(2026, 10, 23, 12, 0, 0) };
   const { app, base } = await startServer(t, dataDir, clock);
   const owner = client(base);
@@ -113,7 +113,7 @@ test('migração v1 → v2: backup idêntico byte a byte, dados preservados, ver
     await fs.writeFile(path.join(dataDir, 'state.json'), JSON.stringify({ ...saved, schemaVersion: 3 }));
     await assert.rejects(StudioStore.open({ dataDir, adminPassword: PASSWORD }), /não suportada/);
   } finally {
-    await fs.rm(dataDir, { recursive: true, force: true });
+    await fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 

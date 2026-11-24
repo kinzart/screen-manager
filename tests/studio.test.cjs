@@ -57,7 +57,7 @@ test('FBS Studio: authoritative routes, protected media and restart persistence'
   await start();
   t.after(async () => {
     if (app) await app.close();
-    await fs.rm(dataDir, { recursive: true, force: true });
+    await fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
   const owner = client();
   const stranger = client();
@@ -284,7 +284,7 @@ test('the store serializes commits and recovers after a failed atomic write', as
     assert.equal(store.db.spaces.uncloneable, undefined);
   } finally {
     await store.close();
-    await fs.rm(dataDir, { recursive: true, force: true });
+    await fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
