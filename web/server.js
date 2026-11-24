@@ -19,6 +19,7 @@ const ASSETS = {
   '/player.css': ['player.css', 'text/css; charset=utf-8'],
   '/player.js': ['player.js', 'application/javascript; charset=utf-8'],
   '/fbs-core.js': ['fbs-core.js', 'application/javascript; charset=utf-8'],
+  '/studio-program.js': ['studio-program.js', 'application/javascript; charset=utf-8'],
   '/tv-cache.js': ['tv-cache.js', 'application/javascript; charset=utf-8'],
   '/tv-sw.js': ['tv-sw.js', 'application/javascript; charset=utf-8'],
 };

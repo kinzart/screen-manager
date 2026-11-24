@@ -41,7 +41,7 @@ async function waitUntil(check, message, timeout = 20000) {
   const port = await freePort();
   // localhost é contexto seguro: Service Worker, Cache Storage e crypto.subtle disponíveis.
   const base = `http://localhost:${port}`;
-  const app = await createStudioServer({ dataDir: directory, adminPassword: PASSWORD, publicOrigin: base, secureCookies: false });
+  let app = await createStudioServer({ dataDir: directory, adminPassword: PASSWORD, publicOrigin: base, secureCookies: false });
   await new Promise(resolve => app.server.listen(port, '127.0.0.1', resolve));
   const cookies = new Map();
   let csrf;
@@ -126,8 +126,10 @@ async function waitUntil(check, message, timeout = 20000) {
     assert.deepEqual(ranged.bytes, Array.from(BIG.subarray(start, start + 30)));
     evidence.push('Range 206 entre blocos servido do cache com bytes idênticos');
 
-    // Sem rede: o receptor continua alternando A/B pelo plano local, com imagens vindas do cache.
-    await context.setOffline(true);
+    // Queda real: o servidor é desligado (setOffline do Playwright não corta de forma confiável o tráfego
+    // de páginas controladas por Service Worker). O receptor precisa indicar o modo offline ANTES da checagem.
+    await app.close();
+    await waitUntil(async () => /Sem conexão/.test(await tv.locator('#tv-network').textContent()), 'receptor entra em modo offline', 15000);
     const seen = new Set();
     const offlineDeadline = Date.now() + 12000;
     while (Date.now() < offlineDeadline) {
@@ -136,12 +138,12 @@ async function waitUntil(check, message, timeout = 20000) {
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     assert.ok(seen.has(p1.id) && seen.has(p2.id), `offline alternou A/B: ${[...seen].join(',')}`);
-    const network = await tv.locator('#tv-network').textContent();
-    assert.match(network, /Sem conexão/);
-    evidence.push('offline: alternância A→B pelo plano local com imagens do cache');
+    assert.match(await tv.locator('#tv-network').textContent(), /Sem conexão/, 'continuou offline durante a checagem');
+    evidence.push('servidor desligado: alternância A→B pelo plano local com imagens do cache');
 
-    // Reconexão: o servidor volta a ser a autoridade e o ACK confirma a versão atual.
-    await context.setOffline(false);
+    // Reconexão: o servidor volta (mesma porta e dados) e o ACK confirma a versão atual.
+    app = await createStudioServer({ dataDir: directory, adminPassword: PASSWORD, publicOrigin: base, secureCookies: false });
+    await new Promise(resolve => app.server.listen(port, '127.0.0.1', resolve));
     await waitUntil(async () => {
       const view = await operatorScreen();
       return view.online && view.ack && ['playing', 'paused'].includes(view.status);

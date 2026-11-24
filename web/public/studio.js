@@ -878,6 +878,7 @@ function buildScreen(body, screen) {
   }, { className: 'danger', test: 'revoke-screen' });
   controls.append(disconnect, rename, revoke);
   body.append(controls);
+  if (window.FBSProgram) window.FBSProgram.build(body, screen);
 }
 
 function syncScreen(screen) {
@@ -896,6 +897,7 @@ function syncScreen(screen) {
   const current = screen.input ? screen.input.kind + ':' + screen.input.id : '';
   selectOptions(select, options, options.some(([id]) => id === current) ? current : '');
   $('disconnect-screen').disabled = !screen.input;
+  if (window.FBSProgram) window.FBSProgram.sync(screen);
 }
 
 function readableSize(bytes) {

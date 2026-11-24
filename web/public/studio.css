@@ -184,6 +184,46 @@ dialog::backdrop { background: #080806c9; }
 .notice { position: fixed; z-index: 4; bottom: 1rem; right: 1rem; max-width: min(420px, calc(100% - 2rem)); padding: .75rem 1rem; border: 1px solid var(--edge); border-radius: 6px; background: var(--raised); color: var(--text); box-shadow: 0 4px 15px #0007; overflow-wrap: anywhere; }
 .notice[data-kind='error'] { border-color: var(--error); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Painel da tela: estado, comandos e programação (fila de sessões). */
+.screen-panel { display: grid; gap: .75rem; padding-top: 1rem; margin-top: 1rem; border-top: 1px solid var(--line); }
+.section-title { margin: 0; font-size: 1rem; }
+.panel-hint, .field-hint { margin: 0; color: var(--muted); font-size: .86rem; }
+.status-grid { display: grid; grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr); gap: .35rem .9rem; margin: 0; }
+.status-grid dt { color: var(--muted); font-size: .86rem; }
+.status-grid dd { margin: 0; overflow-wrap: anywhere; }
+.status-grid .tone-ok { color: var(--green); }
+.status-grid .tone-warn { color: var(--error); }
+.command-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; }
+.take-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .5rem; align-items: end; }
+.take-row .program-field:last-child { grid-column: 1 / -1; }
+.program-field { display: grid; gap: .3rem; min-width: 0; }
+.field-label { font-size: .86rem; color: var(--muted); }
+.program-field select, .program-field input:not([type='checkbox']) { width: 100%; }
+.program-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .65rem; }
+.program-entry { display: grid; gap: .65rem; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+.program-empty { color: var(--muted); padding: .5rem 0; }
+.entry-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; align-items: center; }
+.entry-index { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--line); font-weight: 600; }
+.entry-tools { display: flex; gap: .3rem; }
+.entry-tools button { min-width: 44px; padding-inline: .5rem; }
+.entry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .6rem; }
+.entry-more { grid-column: 1 / -1; }
+.entry-more summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--amber); }
+.entry-more[open] { display: grid; gap: .6rem; }
+.day-picker { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; margin: 0; padding: 0; border: 0; }
+.day-picker legend { width: 100%; margin-bottom: .3rem; font-size: .86rem; color: var(--muted); }
+.day, .check { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding-inline: .55rem; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.day input, .check input { width: 1.1rem; height: 1.1rem; min-height: 0; accent-color: var(--amber); }
+.program-actions { flex-wrap: wrap; align-items: center; }
+.dirty-flag { color: var(--muted); font-size: .86rem; }
+@media (max-width: 520px) {
+  .take-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .take-row .program-field:first-child { grid-column: 1 / -1; }
+  .status-grid { grid-template-columns: minmax(0, 1fr); }
+  .status-grid dd { margin-bottom: .35rem; }
+  .entry-top { grid-template-columns: auto minmax(0, 1fr); }
+  .entry-tools { grid-column: 1 / -1; justify-content: flex-end; }
+}
 @media (min-width: 763px) {
   .graph-empty { width: 100%; }
 }
