@@ -20,7 +20,12 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$SigningDirectory = '.maestro/fbs-analysis/projector-signing',
 
-    [string]$DefaultUrl = ''
+    [string]$DefaultUrl = '',
+
+    # versionCode do APK. 0 = automatico (minutos desde 2026-01-01 UTC), sempre maior que o build anterior,
+    # para o Android aceitar "Atualizar" por cima da versao instalada sem desinstalar (mesma chave).
+    [ValidateRange(0, 2100000000)]
+    [int]$VersionCode = 0
 )
 
 Set-StrictMode -Version Latest
@@ -400,6 +405,11 @@ try {
         $linkArguments += @('-A', $assetsPath)
         $linkPathArgumentIndices += 11
     }
+    if ($VersionCode -eq 0) {
+        $VersionCode = [int][Math]::Floor(([DateTime]::UtcNow - [DateTime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)).TotalMinutes) + 1000
+    }
+    $linkArguments += @('--version-code', [string]$VersionCode, '--replace-version')
+    Write-Host "versionName $versionName, versionCode $VersionCode"
 
     Invoke-Native -Executable $aapt2 -PathArgumentIndices @(2, 4) -Arguments @(
         'compile', '--dir', $resourcePath, '-o', $compiledZip

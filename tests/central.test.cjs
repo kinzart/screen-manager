@@ -305,3 +305,78 @@ test('manifesto lista mídias do plano na ordem de uso com hashes por bloco', as
   assert.equal(manifest.files[1].chunkSize, 8 * 1024 * 1024);
   assert.ok(manifest.planHash);
 });
+
+test('senha do operador: PIN de 6 números aceito e bloqueio global após 10 senhas erradas', async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fbs-pin-'));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+  for (const weak of ['12345', '1234567', 'abcdef', 'senha-curta']) {
+    await assert.rejects(StudioStore.open({ dataDir, adminPassword: weak }), /6 números ou com pelo menos 16/, weak);
+  }
+  const clock = { now: Date.UTC(2026, 10, 24, 12, 0, 0) };
+  const app = await createStudioServer({ dataDir, adminPassword: '482913', publicOrigin: ORIGIN, secureCookies: false, now: () => clock.now, backfillHashes: false });
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  t.after(() => app.close());
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+
+  const owner = client(base);
+  owner.csrf = (await owner.request('/api/v1/login', { password: '482913' })).body.csrf;
+  const stranger = client(base);
+  for (let i = 0; i < 10; i++) await stranger.request('/api/v1/login', { password: String(100000 + i) }, { expected: 401 });
+  // Bloqueado para todos, inclusive com o PIN certo.
+  await client(base).request('/api/v1/login', { password: '482913' }, { expected: 429 });
+  // Quem já estava logado continua operando.
+  await owner.request('/api/v1/spaces', { name: 'Durante o bloqueio' }, { expected: 201 });
+  // Passada a janela de 15 minutos, o PIN certo volta a funcionar.
+  clock.now += 15 * 60 * 1000 + 1;
+  await client(base).request('/api/v1/login', { password: '482913' });
+});
+
+test('excluir mídia, excluir espaço, recarregar aparelho e nomes únicos no pareamento', async t => {
+  const c = await setup(t);
+  const exists = file => fs.stat(file).then(() => true, () => false);
+  const [m1, m2] = [await c.upload('a.png', pngVariant(11)), await c.upload('b.png', pngVariant(12))];
+  const A = await c.playlist('A', [{ mediaId: m1.id, durationMs: 5000 }, { mediaId: m2.id, durationMs: 5000 }]);
+  const file1 = path.join(c.dataDir, 'media', `${m1.id}.${m1.extension}`);
+  assert.ok(await exists(file1));
+
+  // Excluir mídia: sai da biblioteca, das sessões (versão sobe) e do disco.
+  const removed = (await c.owner.request(`/api/v1/media/${m1.id}`, undefined, { method: 'DELETE' })).body;
+  assert.deepEqual(removed.sessions, ['A']);
+  const view = (await c.owner.request(`/api/v1/state?spaceId=${c.space.id}`)).body;
+  assert.deepEqual(view.media.map(item => item.id), [m2.id]);
+  const after = view.playlists.find(item => item.id === A.id);
+  assert.deepEqual(after.items.map(item => item.mediaId), [m2.id]);
+  assert.equal(after.version, A.version + 1);
+  assert.equal(await exists(file1), false);
+  await c.owner.request(`/api/v1/media/${m1.id}`, undefined, { method: 'DELETE', expected: 404 });
+
+  // Pareamento: sem nome vira "FBS 1", "FBS 2"; nome repetido é recusado.
+  async function approve(name) {
+    const tv = client(c.base);
+    const pairing = (await tv.request('/api/v1/pairing', {}, { expected: 201 })).body;
+    return { tv, pairing, response: (body, expected = 201) => c.owner.request(`/api/v1/spaces/${c.space.id}/pairings/${pairing.id}/approve`, body, { expected }) };
+  }
+  const first = await approve();
+  const fbs1 = (await first.response({})).body;
+  assert.equal(fbs1.name, 'FBS 1');
+  const second = await approve();
+  const duplicate = (await second.response({ name: 'fbs 1' }, 409)).body;
+  assert.equal(duplicate.code, 'DUPLICATE_NAME');
+  assert.equal((await second.response({})).body.name, 'FBS 2');
+
+  // Recarregar: funciona sem programação e chega ao receptor como reloadToken.
+  first.tv.csrf = (await first.tv.request(`/api/v1/pairing/${first.pairing.id}/claim`, { challenge: first.pairing.challenge })).body.csrf;
+  assert.equal((await c.screenState(first.tv)).screen.reloadToken, null);
+  await c.owner.request(`/api/v1/screens/${fbs1.id}/commands`, { commandId: 'reload-0001', action: 'reload' }, { expected: 201 });
+  assert.equal((await c.screenState(first.tv)).screen.reloadToken, 'reload-0001');
+
+  // Excluir espaço: exige o nome; apaga telas, sessões, mídias e arquivos; o aparelho perde o acesso.
+  await c.owner.request(`/api/v1/spaces/${c.space.id}`, { confirmName: 'outro' }, { method: 'DELETE', expected: 400 });
+  const file2 = path.join(c.dataDir, 'media', `${m2.id}.${m2.extension}`);
+  await c.owner.request(`/api/v1/spaces/${c.space.id}`, { confirmName: 'Evento' }, { method: 'DELETE' });
+  const db = c.app.store.db;
+  assert.equal(Object.keys(db.spaces).length, 0);
+  assert.equal(Object.keys(db.screens).length + Object.keys(db.playlists).length + Object.keys(db.media).length, 0);
+  assert.equal(await exists(file2), false);
+  await first.tv.request('/api/v1/state?role=screen', undefined, { expected: 401 });
+});

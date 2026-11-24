@@ -15,6 +15,8 @@ const COMMAND_HISTORY = 20;
 const SESSION_ACTIONS = new Set(['play', 'pause', 'stop', 'restart', 'next-session', 'previous-session', 'start-entry']);
 const MEDIA_ACTIONS = new Set(['next-item', 'previous-item']);
 const OVERRIDE_ACTIONS = new Set(['take', 'release']);
+// Ações do aparelho: não mexem na programação (funcionam mesmo sem programa ou override).
+const DEVICE_ACTIONS = new Set(['reload']);
 const COMMAND_ID = /^[A-Za-z0-9_-]{8,100}$/;
 
 const own = (collection, id) => (typeof id === 'string' && Object.hasOwn(collection, id) ? collection[id] : null);
@@ -119,6 +121,7 @@ function createScreenControl({ store }) {
 
   function applyCommand(db, screen, body, now) {
     const { action } = body;
+    if (action === 'reload') { screen.reloadToken = body.commandId; return; }
     const ctx = contextFor(db, screen.spaceId);
     const program = screen.program?.enabled ? screen.program : null;
     const override = activeOverride(db, screen, now);
@@ -204,7 +207,7 @@ function createScreenControl({ store }) {
     screen.commands ??= [];
     const existing = screen.commands.find(record => record.id === body.commandId);
     if (existing) return { record: existing, duplicate: true };
-    if (typeof body.action !== 'string' || !(SESSION_ACTIONS.has(body.action) || MEDIA_ACTIONS.has(body.action) || OVERRIDE_ACTIONS.has(body.action))) {
+    if (typeof body.action !== 'string' || !(SESSION_ACTIONS.has(body.action) || MEDIA_ACTIONS.has(body.action) || OVERRIDE_ACTIONS.has(body.action) || DEVICE_ACTIONS.has(body.action))) {
       throw new StudioError(400, 'Comando inválido.', 'INVALID_COMMAND');
     }
     applyCommand(db, screen, body, now);

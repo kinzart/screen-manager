@@ -442,6 +442,25 @@ function acknowledge() {
   });
 }
 
+// Comando "Recarregar aparelho": a Central troca o reloadToken da tela. O primeiro valor visto depois de
+// abrir a página vira a referência (sessionStorage sobrevive ao reload), então não há laço de recarga.
+var reloadSeen;
+function checkReload(token) {
+  if (reloadSeen === undefined) {
+    try { reloadSeen = sessionStorage.getItem('fbs-reload-token'); } catch (error) { reloadSeen = null; }
+    if (reloadSeen === null) {
+      reloadSeen = token;
+      try { if (token) sessionStorage.setItem('fbs-reload-token', token); } catch (error) { /* só em memória */ }
+      return false;
+    }
+  }
+  if (!token || token === reloadSeen) return false;
+  reloadSeen = token;
+  try { sessionStorage.setItem('fbs-reload-token', token); } catch (error) { /* só em memória */ }
+  location.reload();
+  return true;
+}
+
 function applySnapshot(snapshot, started, offline) {
   const now = performance.now();
   const previous = current;
@@ -465,6 +484,7 @@ function applySnapshot(snapshot, started, offline) {
     snapshotNumber++;
     lastPollAt = now;
     write(byId('tv-network'), '');
+    if (checkReload(snapshot.screen.reloadToken || null)) return;
   }
   document.title = snapshot.screen.name + ' · Tela FBS';
 

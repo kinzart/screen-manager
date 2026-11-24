@@ -48,7 +48,7 @@ O arquivo de distribuição desta versão é `fbs-tela-0.1.0.apk`. Utilize o APK
 
 Use uma JKS local persistente. O diretório indicado por `SigningDirectory` deve permanecer ignorado pelo Git. Guarde um backup privado da JKS e dos dados necessários para utilizá-la **fora do Git e fora do pendrive público**. A JKS não é um arquivo de distribuição.
 
-Para permitir atualizações sem desinstalar, preserve o application ID e a mesma chave de assinatura. Antes de cada nova versão, aumente `android:versionCode` e `android:versionName` no `AndroidManifest.xml` do receptor e mantenha o nome do APK coerente com a versão.
+Para permitir atualizações sem desinstalar, preserve o application ID e a mesma chave de assinatura. O `versionCode` é gerado automaticamente a cada build (minutos desde 2026-01-01 UTC, ou `-VersionCode N`), então todo APK novo é maior que o anterior e o Android aceita "Atualizar" por cima. Ajuste `android:versionName` no `AndroidManifest.xml` quando a versão mudar. Validado em emulador Android 11: 0.1.0 (versionCode 1) → 0.2.0 atualizou mantendo a data de instalação; voltar para 0.1.0 por cima foi recusado (`INSTALL_FAILED_VERSION_DOWNGRADE`).
 
 No projetor, abra o APK pelo gerenciador de arquivos e instale como aplicativo normal. Nas próximas versões, escolha **Atualizar**, sem desinstalar. Não se trata de firmware.
 

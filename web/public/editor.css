@@ -1,0 +1,22 @@
+/* Editor de avisos: prévia 16:9 no topo (fixa no computador) e controles em cartões. */
+.editor { width: min(100%, 1400px); margin: 0 auto; padding: 1rem clamp(.75rem, 2.15vw, 2rem) 2rem; display: grid; gap: 1rem; grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 1fr); align-items: start; }
+.editor-stage { position: sticky; top: 1rem; }
+.editor-stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--line); background: #000; box-shadow: 0 8px 30px #0006; }
+.editor-controls { display: grid; gap: 1rem; min-width: 0; }
+.editor-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+.editor-title { font-size: 1.25rem; }
+.optional { color: var(--muted); font-weight: 450; }
+textarea { width: 100%; min-height: 6.5rem; resize: vertical; border: 1px solid var(--edge); border-radius: 5px; background: var(--ground); color: var(--text); padding: .55rem .65rem; font: inherit; line-height: 1.4; }
+.emoji-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: .35rem; }
+.emoji { min-height: 44px; padding: 0; font-size: 1.35rem; background: var(--ground); border-color: var(--line); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: .5rem; }
+.swatch { min-height: 44px; aspect-ratio: 1; border: 2px solid var(--line); border-radius: 8px; }
+.swatch[aria-checked='true'] { border-color: var(--text); box-shadow: 0 0 0 2px var(--amber); }
+.editor-row { display: grid; gap: .3rem; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.segmented [aria-pressed='true'] { border-color: var(--amber); color: var(--amber); }
+.editor .actions button { flex: 1 1 10rem; }
+@media (max-width: 900px) {
+  .editor { grid-template-columns: minmax(0, 1fr); }
+  .editor-stage { position: sticky; top: 0; z-index: 2; padding-top: .25rem; background: var(--ground); }
+}

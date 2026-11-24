@@ -1,11 +1,41 @@
 # FBS: progresso e retomada
 
-Branch de trabalho: `feat/fbs-central-orchestration` (criada a partir de `main@1ce4c2b`). **Não fazer merge no `main` sem aprovação.** Branch enviada ao GitHub (`origin/feat/fbs-central-orchestration`).
+Branch de trabalho deste ciclo: `feat/fbs-central-orchestration` (já mergeada no `main`, PRs #1 e #2). Ciclos seguintes: `feat/pin-login` e `feat/mobile-ux`. **Não fazer merge no `main` sem aprovação.** Branch enviada ao GitHub (`origin/feat/fbs-central-orchestration`).
 
 **Produção:** a Central 1.1.0 foi publicada em 2026-11-24 (commit `2bbe219`, build Hostinger `01a20e3b-8814-7107-990c-730151dfd7c5`) com `scripts/deploy-studio.mjs`. Conferido depois: `/health` = 1.1.0; login com a senha existente; espaço "Evento de validação" com 1 tela, 2 sessões e 8 mídias; `/tv` em HTTPS gera código e QR, Service Worker e contexto seguro disponíveis. A existência de `state.v1-*.json` no servidor **não** foi conferida (a API não lê fora de `public_html`).
 
 **Publicação automática:** `.github/workflows/deploy-studio.yml` publica a cada push no `main` que altere `web/` (testes antes) e depende do segredo `HOSTINGER_API_TOKEN`. Só passa a valer depois do merge desta branch no `main`.
 Git neste PC: use `git -c safe.directory=* <cmd>` (o repositório pertence a outro SID do Windows). O working tree usa CRLF (`core.autocrlf=true`).
+
+## Estado em 2026-11-24 (ler primeiro)
+
+- **Produção:** Central **1.2.0** em https://screen-manager.kinzart.com.br, publicada a partir de `feat/mobile-ux` (commit `b57c8ee`) com `scripts/deploy-studio.mjs`. O `main` está na 1.1.0. **Falta o merge de `feat/mobile-ux`** (já inclui `feat/pin-login`). Até lá, a publicação automática a partir do `main` é recusada pelo bloqueio de downgrade.
+- **Senha do operador:** PIN de 6 números (`.maestro/fbs-analysis/private/ACESSO-FBS-STUDIO.txt`). Depois de 10 senhas erradas em 15 minutos, o login trava para todos.
+- **Hostinger:** token da API em `.maestro/fbs-analysis/private/hostinger-token.txt` e no segredo `HOSTINGER_API_TOKEN` do GitHub. Trocar uma variável de ambiente **não** reinicia o app: é preciso chamar `POST .../nodejs/server/restart`.
+- **1.2.0 entregou:**
+  - menu de ações ao tocar no card;
+  - exclusão de tela, sessão, mídia e espaço;
+  - "Reiniciar tela" (comando `reload` → `reloadToken`);
+  - nomes "FBS N" únicos;
+  - painel sem zoom, com barra inferior e mapa em duas colunas no celular;
+  - app instalável (PWA);
+  - editor de avisos em `/avisos`.
+- **APK Tela FBS 0.2.0:** `versionCode` automático. A atualização por cima da 0.1.0 foi validada em emulador Android 11; no HY300 real, ainda não. O APK está em `Desktop/FBS Tela - Pendrive`.
+- **Verificação:**
+
+  | Suíte | Resultado |
+  |---|---|
+  | web | 34/34 |
+  | raiz | 6/6 |
+  | E2E `mobile-ux` | PASS |
+  | E2E `central-ui` | PASS |
+  | E2E `studio` | PASS |
+  | E2E `tv-offline` | PASS |
+- **Próximos passos:**
+  1. Merge da PR.
+  2. Teste no HY300 e no celular instalado.
+  3. Proposta aguardando OK: app Electron com botão "Painel da Central" e atualização automática via GitHub Releases.
+  4. Opcional: APK que se atualiza sozinho.
 
 ## Como retomar
 

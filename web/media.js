@@ -318,6 +318,15 @@ function createMedia({ store, authorize, csrf }) {
     });
     return hashing;
   };
+  // Apaga do disco arquivos de mídias e envios já removidos do estado (exclusão de mídia ou de espaço).
+  handle.removeFiles = async ({ media = [], uploads = [] } = {}) => {
+    const ignoreMissing = error => { if (error.code !== 'ENOENT') console.error('FBS Studio: remoção de arquivo', error.message); };
+    for (const item of media) {
+      planMedia.clear();
+      await fs.unlink(mediaPath(item)).catch(ignoreMissing);
+    }
+    for (const id of uploads) await fs.unlink(temporary(id)).catch(ignoreMissing);
+  };
   handle.ready = ready;
   return handle;
 }

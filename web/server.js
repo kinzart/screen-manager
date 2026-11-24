@@ -22,6 +22,16 @@ const ASSETS = {
   '/studio-program.js': ['studio-program.js', 'application/javascript; charset=utf-8'],
   '/tv-cache.js': ['tv-cache.js', 'application/javascript; charset=utf-8'],
   '/tv-sw.js': ['tv-sw.js', 'application/javascript; charset=utf-8'],
+  '/studio-sw.js': ['studio-sw.js', 'application/javascript; charset=utf-8'],
+  '/studio.webmanifest': ['studio.webmanifest', 'application/manifest+json; charset=utf-8'],
+  '/icons/icon-192.png': ['icons/icon-192.png', 'image/png'],
+  '/icons/icon-512.png': ['icons/icon-512.png', 'image/png'],
+  '/icons/maskable-512.png': ['icons/maskable-512.png', 'image/png'],
+  '/icons/apple-touch-icon.png': ['icons/apple-touch-icon.png', 'image/png'],
+  '/favicon.ico': ['icons/icon-192.png', 'image/png'],
+  '/avisos': ['editor.html', 'text/html; charset=utf-8'],
+  '/editor.js': ['editor.js', 'application/javascript; charset=utf-8'],
+  '/editor.css': ['editor.css', 'text/css; charset=utf-8'],
 };
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -42,8 +52,9 @@ async function createStudioServer(options = {}) {
   const secureCookies = options.secureCookies ?? publicOrigin.startsWith('https://');
   const store = await StudioStore.open({ dataDir, adminPassword, now: options.now || Date.now });
   const sessions = createSessions({ store, publicOrigin, secureCookies });
-  const api = createApi({ store, publicOrigin, secureCookies, sessions });
-  const media = createMedia({ store, publicOrigin, authorize: sessions.authorize, csrf: sessions.csrf });
+  let media;
+  const api = createApi({ store, publicOrigin, secureCookies, sessions, removeFiles: files => media.removeFiles(files) });
+  media = createMedia({ store, publicOrigin, authorize: sessions.authorize, csrf: sessions.csrf });
   await media.ready;
   if (options.backfillHashes !== false) media.backfill().catch(() => {});
   const server = http.createServer(async (req, res) => {

@@ -76,8 +76,10 @@ async function writeAtomic(dataDir, name, text) {
 
 class StudioStore {
   static async open({ dataDir, adminPassword, now = Date.now }) {
-    if (!dataDir || typeof adminPassword !== 'string' || adminPassword.length < 16) {
-      throw new Error('Defina um diretório de dados privado e uma senha com pelo menos 16 caracteres.');
+    // Senha do operador: PIN de exatamente 6 números (prático no celular; o login tem bloqueio global
+    // contra tentativas) ou uma senha longa de 16+ caracteres.
+    if (!dataDir || typeof adminPassword !== 'string' || !(/^\d{6}$/.test(adminPassword) || adminPassword.length >= 16)) {
+      throw new Error('Defina um diretório de dados privado e uma senha de 6 números ou com pelo menos 16 caracteres.');
     }
     const store = new StudioStore();
     store.dataDir = path.resolve(dataDir);

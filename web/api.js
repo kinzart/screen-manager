@@ -160,7 +160,7 @@ function disconnectInputs(db, kind, id) {
   }
 }
 
-function createApi({ store, publicOrigin, secureCookies, sessions: sharedSessions }) {
+function createApi({ store, publicOrigin, secureCookies, sessions: sharedSessions, removeFiles = async () => {} }) {
   const sessions = sharedSessions || createSessions({ store, publicOrigin, secureCookies });
   const { authorize, csrf } = sessions;
   const presence = new Map();
@@ -233,7 +233,7 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
       const now = store.now();
       const common = { role, csrf: session.csrf, revision: db.revision, serverNowMs: now };
       if (role === 'screen') {
-        const { id, name } = db.screens[session.screenId];
+        const { id, name, reloadToken = null } = db.screens[session.screenId];
         const resolved = resolveScreenOutput(db, id, now);
         markSeen(id, now, undefined, { deliveredRevision: db.revision });
         // Em programa/override, a versão da origem combina sessão e controle da tela (invalida ACKs antigos).
@@ -241,7 +241,7 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
         const body = {
           ...common, protocol: PROTOCOL,
           screen: { id, name, routeVersion: resolved.routeVersion, sourceId: resolved.sourceId, origin: resolved.origin,
-            entryId: resolved.entryId, required: resolved.required, segmentKey: resolved.segmentKey },
+            entryId: resolved.entryId, required: resolved.required, segmentKey: resolved.segmentKey, reloadToken },
           source, output: resolved.output, planHash: resolved.planHash,
         };
         if (searchParams.get('plan') !== resolved.planHash) body.plan = resolved.plan;
@@ -496,6 +496,60 @@ function createApi({ store, publicOrigin, secureCookies, sessions: sharedSession
         return current;
       });
       json(res, 200, node);
+      return true;
+    }
+
+    const mediaDelete = /^\/api\/v1\/media\/([^/]+)$/.exec(pathname);
+    if (method === 'DELETE' && mediaDelete) {
+      // Retira a mídia das sessões que a usam (congelando programações antes, como numa edição de fila).
+      const removed = await operatorChange(req, db => {
+        const media = requireRecord(db.media, mediaDelete[1], 'Mídia');
+        const now = store.now();
+        const sessions = [];
+        for (const playlist of Object.values(db.playlists)) {
+          if (!playlist.items.some(item => item.mediaId === media.id)) continue;
+          control.freezeProgramsUsing(db, playlist.id, now);
+          const positionMs = playlistPosition(playlist, now);
+          playlist.items = playlist.items.filter(item => item.mediaId !== media.id);
+          const durationMs = itemStart(playlist.items, playlist.items.length);
+          playlist.transport.positionMs = playlist.loop && durationMs ? positionMs % durationMs : Math.min(positionMs, durationMs);
+          playlist.transport.anchorAtMs = now;
+          playlist.version += 1;
+          sessions.push(playlist.name);
+        }
+        delete db.media[media.id];
+        return { media, sessions };
+      }, false);
+      await removeFiles({ media: [removed.media] });
+      json(res, 200, { ok: true, sessions: removed.sessions });
+      return true;
+    }
+
+    const spaceDelete = /^\/api\/v1\/spaces\/([^/]+)$/.exec(pathname);
+    if (method === 'DELETE' && spaceDelete) {
+      // Apaga o espaço inteiro: telas (e seus aparelhos), sessões, mídias e envios pendentes.
+      const removed = await operatorChange(req, (db, body) => {
+        const space = requireRecord(db.spaces, spaceDelete[1], 'Espaço');
+        if (!body || body.confirmName !== space.name) {
+          throw new StudioError(400, 'Digite o nome do espaço para confirmar a exclusão.', 'CONFIRMATION_REQUIRED');
+        }
+        const inSpace = item => item.spaceId === space.id;
+        const screens = Object.values(db.screens).filter(inSpace).map(screen => screen.id);
+        for (const session of Object.values(db.sessions)) {
+          if (session.role === 'screen' && screens.includes(session.screenId)) delete db.sessions[session.id];
+        }
+        for (const id of screens) delete db.screens[id];
+        for (const playlist of Object.values(db.playlists).filter(inSpace)) delete db.playlists[playlist.id];
+        const media = Object.values(db.media).filter(inSpace);
+        for (const item of media) delete db.media[item.id];
+        const uploads = Object.values(db.uploads).filter(inSpace).map(upload => upload.id);
+        for (const id of uploads) delete db.uploads[id];
+        delete db.spaces[space.id];
+        return { screens, media, uploads };
+      });
+      for (const id of removed.screens) presence.delete(id);
+      await removeFiles({ media: removed.media, uploads: removed.uploads });
+      json(res, 200, { ok: true });
       return true;
     }
 

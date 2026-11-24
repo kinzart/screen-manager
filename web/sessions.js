@@ -6,8 +6,21 @@ const { assertOrigin, cookie, digest, equal, issueCookie, json, readJson } = req
 
 const SESSION_SECONDS = 30 * 24 * 60 * 60;
 const PAIRING_MS = 5 * 60 * 1000;
+// Bloqueio global de login: com um PIN de 6 números, o limite por IP não basta (IPs podem variar).
+// Depois de LOGIN_FAILURE_LIMIT senhas erradas na janela, ninguém entra até a janela acabar;
+// sessões já abertas continuam valendo.
+const LOGIN_FAILURE_LIMIT = 10;
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const COOKIE_NAMES = { operator: 'fbs_operator', screen: 'fbs_screen' };
 const SECRET_PATTERN = /^[0-9a-f]{64}$/;
+
+// Próximo nome livre no formato "FBS N" dentro do espaço.
+function nextScreenName(db, spaceId) {
+  const used = new Set(Object.values(db.screens).filter(node => node.spaceId === spaceId).map(node => node.name.trim().toLowerCase()));
+  let n = 1;
+  while (used.has(`fbs ${n}`)) n += 1;
+  return `FBS ${n}`;
+}
 
 function nameForScreen(value, fallback) {
   if (value === undefined) return fallback;
@@ -47,6 +60,7 @@ function pairingWithChallenge(db, id, challenge) {
 
 function createSessions({ store, publicOrigin, secureCookies }) {
   const attempts = { login: new Map(), pairing: new Map() };
+  let loginFailures = [];
 
   function rateLimit(req, action, limit, windowMs) {
     const entries = attempts[action];
@@ -92,8 +106,14 @@ function createSessions({ store, publicOrigin, secureCookies }) {
     if (method === 'POST' && pathname === '/api/v1/login') {
       assertOrigin(req, publicOrigin);
       rateLimit(req, 'login', 20, PAIRING_MS);
+      const started = store.now();
+      loginFailures = loginFailures.filter(at => at > started - LOGIN_FAILURE_WINDOW_MS);
+      if (loginFailures.length >= LOGIN_FAILURE_LIMIT) {
+        throw new StudioError(429, 'Muitas senhas erradas. O acesso foi bloqueado por 15 minutos.');
+      }
       const { password } = await readJson(req);
       if (typeof password !== 'string' || !equal(digest(password), digest(store.password))) {
+        loginFailures.push(started);
         throw new StudioError(401, 'Senha inválida.');
       }
       const { session, secret } = await store.change(db => {
@@ -222,8 +242,11 @@ function createSessions({ store, publicOrigin, secureCookies }) {
           return target;
         }
         const count = Object.values(db.screens).filter(node => node.spaceId === spaceId).length;
+        const screenName = typeof name === 'string' && name.trim() ? nameForScreen(name, '') : nextScreenName(db, spaceId);
+        const taken = Object.values(db.screens).some(node => node.spaceId === spaceId && node.name.trim().toLowerCase() === screenName.trim().toLowerCase());
+        if (taken) throw new StudioError(409, `Já existe uma tela chamada "${screenName}" neste espaço. Escolha outro nome.`, 'DUPLICATE_NAME');
         const created = {
-          id: randomUUID(), spaceId, name: nameForScreen(name, pairing.name), version: 1,
+          id: randomUUID(), spaceId, name: screenName, version: 1,
           routeRevision: 1, input: null, position: { x: 415, y: Math.min(4000, 45 + count * 110) }, createdAt: now,
           program: null, override: null, commands: [], device: null, controlRevision: 0,
         };
@@ -241,6 +264,7 @@ function createSessions({ store, publicOrigin, secureCookies }) {
   function close() {
     attempts.login.clear();
     attempts.pairing.clear();
+    loginFailures = [];
   }
 
   return { handle, authorize, csrf, close };
